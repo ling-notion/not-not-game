@@ -609,7 +609,7 @@
       t.classList.toggle('on', hard);
       t.classList.toggle('locked', !hardUnlocked);
       t.querySelector('b').textContent = hardUnlocked ? '🌶️ Hard mode' : '🔒 Hard mode';
-      t.querySelector('.toggle-note').textContent = hardUnlocked ? 'Unlocked, for a challenge' : 'Finish one regular game to unlock';
+      t.querySelector('.toggle-note').textContent = hardUnlocked ? '(for a challenge)' : '(locked: finish one regular game)';
     });
   }
 
