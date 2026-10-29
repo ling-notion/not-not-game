@@ -158,7 +158,8 @@
   const elapsed = () => (performance.now() - state.startedAt) / 1000;
   // Seconds on the difficulty clock, which hard mode runs faster and starts ahead.
   // Level number shown to the player: hard mode counts from 1 at its later starting level.
-  const shownLevel = () => state.level + 1 - (state.runHard ? levelFor(HARD.start) : 0);
+  const levelOffset = () => (state.runHard ? levelFor(HARD.start) : 0);
+  const shownLevel = (level = state.level) => level + 1 - levelOffset();
   const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed());
 
   function updateHud() {
@@ -326,7 +327,7 @@
       const rounds = state.history.filter((h) => h.level === level);
       if (!rounds.length) return;
       const squares = rounds.slice(0, 10).map((h) => marks[h.result]).join('');
-      rows.push(`L${level + 1} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
+      rows.push(`L${shownLevel(level)} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
     });
     const lines = [
       `Not not game 🧠 ${state.score} pts · Level ${shownLevel()}${state.runHard ? ' · 🌶️ Hard' : ''}`,

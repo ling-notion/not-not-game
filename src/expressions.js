@@ -152,9 +152,9 @@
 
   // The typical prompt difficulty at a point in the game: rises quickly at first, then keeps
   // climbing steadily until MAX_DIFFICULTY. Individual prompts vary around it.
-  const MAX_DIFFICULTY = 10;
+  const MAX_DIFFICULTY = 12;
   function targetDifficulty(seconds) {
-    const curve = 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.008 * Math.max(0, seconds - 150);
+    const curve = 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.014 * Math.max(0, seconds - 150);
     return Math.min(MAX_DIFFICULTY, curve);
   }
 
