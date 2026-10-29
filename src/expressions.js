@@ -69,12 +69,13 @@
   // Seconds of play at which each level begins, and the rule each level introduces.
   const LEVELS = [
     { at: 0, intro: 'Press the key that matches' },
-    { at: 6, intro: 'New: "not" means anything except' },
-    { at: 15, intro: 'New: "nothing" means don\'t press' },
+    { at: 5, intro: 'New: "not" means anything except' },
+    { at: 13, intro: 'New: "nothing" means don\'t press' },
     { at: 27, intro: 'New: "or"' },
     { at: 40, intro: 'New: words lie about their color' },
     { at: 55, intro: 'New: symbols instead of words' },
     { at: 72, intro: 'Chaos mode' },
+    { at: 100, intro: 'Endless: it only gets faster' },
   ];
 
   function levelFor(seconds) {
@@ -85,9 +86,10 @@
 
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
-    const base = [2600, 2300, 2100, 1900, 1750, 1600, 1450][level];
-    const decay = Math.max(0, seconds - LEVELS[level].at) * 10;
-    return Math.max(950, base - decay) + opCount(expr) * 220;
+    // Gentle steps between levels so no single level is a wall; reading time scales with length.
+    const base = [2300, 2150, 2000, 1900, 1800, 1750, 1700, 1650][level];
+    const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
+    return Math.max(1150, base - decay) + opCount(expr) * 260;
   }
 
   function makeRng(seed) {
@@ -159,10 +161,11 @@
         () => notN(or(...twoAtoms()), 2),
       ],
       [() => notN(randomAtom(), pick([2, 3, 4])), () => or(notN(randomAtom(), 2), not(randomAtom()))],
+      [() => notN(or(...twoAtoms()), 3), () => not(or(notN(randomAtom(), 2), randomAtom()))],
       [
-        () => not(or(notN(randomAtom(), 2), randomAtom())),
-        () => notN(or(...twoAtoms()), 3),
         () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
+        () => notN(or(...twoAtoms()), 3),
+        () => not(or(notN(randomAtom(), 2), randomAtom())),
       ],
     ];
 
@@ -172,7 +175,9 @@
     return function next(level) {
       for (let attempt = 0; attempt < 50; attempt++) {
         // Favor the newest rule, but keep mixing in everything learned so far.
-        const tier = rng() < 0.6 ? level : Math.floor(rng() * (level + 1));
+        // Later levels lean less on the newest rule, so the hardest prompts stay occasional.
+        const newest = level >= 5 ? 0.4 : 0.6;
+        const tier = rng() < newest ? level : Math.floor(rng() * (level + 1));
         const expr = pick(TEMPLATES[tier])();
         const text = toText(expr);
         const answers = evaluate(expr);

@@ -134,6 +134,7 @@
     bestStreak: 0,
     hardestSolved: null,
     nemesis: null,
+    ease: 0, // rounds left of lighter prompts after a miss
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
@@ -168,7 +169,7 @@
   function startGame() {
     clearTimers();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -193,8 +194,11 @@
       showBanner(LEVELS[level].intro);
       window.Sound.levelUp();
     }
-    const expr = nextExpr(state.level);
-    const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1);
+    // After a miss, two lighter rounds with extra time let the player recover instead of spiralling.
+    const easing = state.ease > 0;
+    if (easing) state.ease -= 1;
+    const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level);
+    const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     state.round = { expr, answers: evaluate(expr), limit, deadline: performance.now() + limit, active: true };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
@@ -224,6 +228,7 @@
     } else {
       state.lives -= 1;
       state.streak = 0;
+      state.ease = 2;
       if (tile) tile.classList.add('miss');
       round.answers.forEach((id) => els.tiles[id].classList.add('valid'));
       window.Sound.wrong();
