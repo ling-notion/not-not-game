@@ -7,8 +7,9 @@
   const START_LIVES = 3;
   const BEST_KEY = 'not-not-best';
   const HARD_KEY = 'not-not-hard';
-  // Hard mode runs the difficulty clock faster and trims every answer window.
-  const HARD = { clock: 1.6, time: 0.85 };
+  // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
+  // a little above the normal curve.
+  const HARD = { clock: 1.6, time: 0.8, boost: 0.35 };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
@@ -218,7 +219,7 @@
     // After a miss, two rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
-    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill });
+    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0) });
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
     state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true };
