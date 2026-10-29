@@ -64,6 +64,26 @@
       [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
         tone(f, { start: i * 0.07, dur: 0.18, type: 'triangle', vol: 0.4 }));
     },
+    // Streak milestones: a rising fanfare that grows with each tier (1 = 10, 2 = 25, 3 = 50, 4 = 100+).
+    milestone(tier = 1) {
+      const root = 523.25;
+      const steps = [0, 4, 7, 12, 16, 19, 24].slice(0, 3 + Math.min(tier, 4));
+      steps.forEach((st, i) => {
+        const f = root * Math.pow(2, st / 12);
+        tone(f, { start: i * 0.06, dur: 0.2, type: 'triangle', vol: 0.4 });
+        tone(f * 1.005, { start: i * 0.06, dur: 0.2, type: 'sawtooth', vol: 0.06 });
+      });
+      const end = steps.length * 0.06;
+      // A held major chord, then sparkles on the higher tiers.
+      [0, 4, 7, 12].forEach((st) => tone(root * Math.pow(2, st / 12), { start: end, dur: 0.5 + tier * 0.12, type: 'sine', vol: 0.22 }));
+      if (tier >= 2) [2093, 2637, 3136].forEach((f, i) => tone(f, { start: end + 0.1 + i * 0.07, dur: 0.12, type: 'sine', vol: 0.12 }));
+      if (tier >= 3) tone(130.81, { start: end, dur: 0.7, type: 'sawtooth', vol: 0.12, slide: 261.63 });
+    },
+    // Losing a long streak: a falling shatter.
+    comboBreak() {
+      [880, 660, 494, 330].forEach((f, i) => tone(f, { start: i * 0.05, dur: 0.14, type: 'square', vol: 0.12, slide: f * 0.7 }));
+      tone(160, { start: 0.1, dur: 0.45, type: 'sawtooth', vol: 0.22, slide: 55 });
+    },
     shuffle() {
       tone(300, { dur: 0.22, type: 'triangle', vol: 0.3, slide: 900 });
       tone(450, { start: 0.08, dur: 0.22, type: 'sine', vol: 0.2, slide: 1200 });

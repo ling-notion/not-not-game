@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.28.26.6">
+  <link rel="stylesheet" href="src/style.css?v=10.28.26.9">
 </head>
 <body>
   <header class="hud">
@@ -31,6 +31,7 @@
   <main class="stage">
     <div id="banner" class="banner" aria-live="polite"></div>
     <div class="prompt-wrap">
+      <div id="combo" class="combo" aria-live="polite"></div>
       <div id="prompt" class="prompt" aria-live="assertive"></div>
       <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
@@ -49,9 +50,9 @@
     <div class="card">
       <h1>Not <span class="strike">not</span> game</h1>
       <ol class="steps">
-        <li><span class="step-n">1</span>Read the rule</li>
-        <li><span class="step-n">2</span>Press any key it allows</li>
-        <li><span class="step-n">3</span>Before the bar runs out</li>
+        <li><span class="step-n">1</span><span>Play with the <b>arrow keys</b> (or tap the tiles). Each key has a <b>direction</b>, a <b>color</b>, and a <b>shape</b>.</span></li>
+        <li><span class="step-n">2</span><span>Read the rule, then press a key that matches it.</span></li>
+        <li><span class="step-n">3</span><span>You have <b class="c-red">3 lives</b>. A wrong key or running out of time costs one.</span></li>
       </ol>
       <div class="legend" aria-hidden="true"></div>
       <button class="hard-toggle" type="button" role="switch" aria-checked="false">
@@ -88,9 +89,9 @@
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
       </button>
       <ol class="steps pause-steps">
-        <li><span class="step-n">1</span>Read the rule</li>
-        <li><span class="step-n">2</span>Press any key it allows</li>
-        <li><span class="step-n">3</span>Before the bar runs out</li>
+        <li><span class="step-n">1</span><span>Play with the <b>arrow keys</b> (or tap the tiles). Each key has a <b>direction</b>, a <b>color</b>, and a <b>shape</b>.</span></li>
+        <li><span class="step-n">2</span><span>Read the rule, then press a key that matches it.</span></li>
+        <li><span class="step-n">3</span><span>You have <b class="c-red">3 lives</b>. A wrong key or running out of time costs one.</span></li>
       </ol>
       <button id="help-toggle" class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
@@ -116,8 +117,8 @@
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.28.26.6"></script>
-  <script src="src/sound.js?v=10.28.26.6"></script>
-  <script src="src/game.js?v=10.28.26.6"></script>
+  <script src="src/expressions.js?v=10.28.26.9"></script>
+  <script src="src/sound.js?v=10.28.26.9"></script>
+  <script src="src/game.js?v=10.28.26.9"></script>
 </body>
 </html>

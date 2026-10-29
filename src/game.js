@@ -34,6 +34,7 @@
     streak: $('#streak'),
     level: $('#level'),
     banner: $('#banner'),
+    combo: $('#combo'),
     feedback: $('#feedback'),
     title: $('#title-screen'),
     over: $('#over-screen'),
@@ -197,11 +198,37 @@
     els.lives.innerHTML = Array.from({ length: START_LIVES }, (_, i) =>
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
-    els.streak.textContent = state.streak >= 3 ? `${state.streak} streak` : '';
+    renderStreak();
     els.level.textContent = state.practice >= 0 ? `Tutorial ${state.practice + 1} of ${PRACTICE.length}` : `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
     els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
+  }
+
+  // Streak styling steps up at each tier; reaching a milestone count also plays a fanfare.
+  const STREAK_TIERS = [10, 25, 50, 100];
+  const streakTier = (n) => STREAK_TIERS.filter((t) => n >= t).length;
+  const isMilestone = (n) => STREAK_TIERS.includes(n) || (n > 100 && n % 50 === 0);
+  function renderStreak() {
+    const n = state.streak;
+    const tier = streakTier(n);
+    els.streak.textContent = n >= 3 ? `${tier >= 3 ? '🔥 ' : ''}${n} streak` : '';
+    [1, 2, 3, 4].forEach((t) => els.streak.classList.toggle(`tier-${t}`, t === tier));
+  }
+  function bumpStreak() {
+    els.streak.classList.remove('bump');
+    void els.streak.offsetWidth;
+    els.streak.classList.add('bump');
+  }
+  function celebrateStreak(n) {
+    const tier = Math.min(4, Math.max(1, streakTier(n)));
+    window.Sound.milestone(tier);
+    els.streak.classList.add('milestone');
+    later(() => els.streak.classList.remove('milestone'), 900);
+    els.combo.textContent = n >= 100 ? `${n} streak! Unstoppable` : n >= 50 ? `${n} streak! On fire` : `${n} streak!`;
+    els.combo.className = `combo tier-${tier}`;
+    void els.combo.offsetWidth;
+    els.combo.classList.add('show');
   }
 
   // Normal mode leaves new-mechanic instructions up longer; hard-mode players already know them.
@@ -378,13 +405,15 @@
       // Points grow exponentially with the prompt's difficulty, plus a small streak bonus.
       state.score += Math.max(1, Math.round(1.5 ** difficulty(round.expr))) + Math.floor(state.streak / 5);
       if (tile) tile.classList.add('hit');
-      if (pressedNothing) window.Sound.correctNothing();
+      if (isMilestone(state.streak)) celebrateStreak(state.streak);
+      else if (pressedNothing) window.Sound.correctNothing();
       else window.Sound.correct(state.streak);
       showFeedback(pressedNothing ? 'Nice restraint' : 'Correct', 'good');
       document.body.classList.add('flash-good');
       later(() => document.body.classList.remove('flash-good'), 180);
     } else {
       state.lives -= 1;
+      if (state.streak >= STREAK_TIERS[0]) { window.Sound.comboBreak(); showBanner(`Streak broken at ${state.streak}`); }
       state.streak = 0;
       state.ease = 2;
       state.skill = Math.max(-1.5, Math.min(0, state.skill) - 0.8);
@@ -401,6 +430,7 @@
       later(() => document.body.classList.remove('shake'), 350);
     }
     updateHud();
+    if (correct && state.streak >= 3) bumpStreak();
     els.timer.style.transform = 'scaleX(0)';
 
     if (state.lives <= 0) later(endGame, 900);
