@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -9,12 +9,8 @@
   const HARD_KEY = 'not-not-hard';
   // Hard mode runs the difficulty clock faster and trims every answer window.
   const HARD = { clock: 1.6, time: 0.85 };
-  const LYING_COLORS = featureLevel('lyingColors');
-  const SYMBOLS = featureLevel('symbols');
-  const LYING_SYMBOLS = featureLevel('chaos');
   const SHUFFLE = featureLevel('shuffle');
-  const FADE = featureLevel('fade');
-  const SHUFFLE_EVERY = 6; // rounds between pad shuffles once the shuffle level is reached
+  const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
 
   const $ = (sel) => document.querySelector(sel);
@@ -80,15 +76,22 @@
     return options[Math.floor(Math.random() * options.length)];
   };
 
-  // Higher levels add visual traps: misleading word colors, then symbols in place of words.
-  function renderPrompt(expr, level) {
+  // The prompt's style (chosen and scored by the generator) adds visual traps:
+  // symbols in place of words, and colors that lie about the word.
+  function renderPrompt(expr) {
+    const style = expr.style || {};
+    const tokens = toTokens(expr);
+    // With symbols on, about half the eligible words become symbols, and always at least one.
+    const eligible = tokens.filter((t) => t.atom && (t.atom.attr === 'dir' || t.atom.attr === 'shape'));
+    const asSymbol = new Set(style.symbols ? eligible.filter(() => Math.random() < 0.5) : []);
+    if (style.symbols && !asSymbol.size && eligible.length) asSymbol.add(eligible[0]);
     const pieces = [];
     let openParens = '';
-    toTokens(expr).forEach((t) => {
+    tokens.forEach((t) => {
       // Parentheses attach to their neighbors so they never wrap onto a line by themselves.
       if (t.kind === 'paren' && t.text === '(') { openParens += '<span class="paren">(</span>'; return; }
       if (t.kind === 'paren') { pieces[pieces.length - 1] += '<span class="paren">)</span>'; return; }
-      pieces.push(openParens + renderToken(t, level));
+      pieces.push(openParens + renderToken(t, style, asSymbol.has(t)));
       openParens = '';
     });
     els.prompt.innerHTML = pieces.map((p) => `<span class="word">${p}</span>`).join(' ');
@@ -97,21 +100,20 @@
     els.prompt.classList.add('pop');
   }
 
-  function renderToken(t, level) {
+  function renderToken(t, style, asSymbol) {
     if (t.kind !== 'atom') return `<span class="${t.kind}">${t.text}</span>`;
     const { attr, value } = t.atom;
-    const useSymbol = level >= SYMBOLS && (attr === 'dir' || attr === 'shape') && Math.random() < 0.5;
-    if (useSymbol && attr === 'dir') {
+    if (asSymbol && attr === 'dir') {
       const key = KEYS.find((k) => k.dir === value);
       return `<span class="atom symbol">${key.glyph}</span>`;
     }
-    if (useSymbol && attr === 'shape') {
-      const fill = level >= LYING_SYMBOLS ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
+    if (asSymbol && attr === 'shape') {
+      const fill = style.lyingColors ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
       return `<span class="atom symbol">${shapeSvg(value, fill, 44)}</span>`;
     }
     let color = '#f4f4f8';
-    if (level >= LYING_COLORS && attr === 'color') color = HEX[pickOther(value)];
-    else if (level >= LYING_COLORS && Math.random() < 0.4) color = HEX[pickOther()];
+    if (style.lyingColors && attr === 'color') color = HEX[pickOther(value)];
+    else if (style.lyingColors && Math.random() < 0.4) color = HEX[pickOther()];
     return `<span class="atom" style="color:${color}">${t.text}</span>`;
   }
 
@@ -219,13 +221,13 @@
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
     // From the fade level on, some prompts vanish after a short look; easier at first, rarer later.
-    const fades = !easing && state.level >= FADE && Math.random() < (state.level === FADE ? 0.6 : 0.35);
+    const fades = !easing && expr.style && expr.style.fade;
     const fadeAt = fades ? now + 550 + 180 * opCount(expr) : 0;
-    state.round = { expr, answers: evaluate(expr), limit, deadline: now + limit, fadeAt, active: true };
+    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, fadeAt, active: true };
     els.prompt.classList.remove('faded');
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
-    renderPrompt(expr, state.level);
+    renderPrompt(expr);
     updateHud();
   }
 
@@ -247,11 +249,22 @@
   function resolve(keyId) {
     const round = state.round;
     if (!round || !round.active) return;
+    // "and" prompts stay open until every named key is pressed once; any other press fails.
+    if (round.needAll && keyId && round.answers.has(keyId) && !round.pressed.has(keyId)) {
+      round.pressed.add(keyId);
+      els.tiles[keyId].classList.add('hit');
+      if (round.pressed.size < round.answers.size) {
+        showFeedback(`${round.pressed.size} of ${round.answers.size}`, 'good');
+        return;
+      }
+    }
     round.active = false;
-    state.lastKey = keyId;
+    // After an "and" prompt there's no single last key, so memory prompts wait a round.
+    state.lastKey = round.needAll ? null : keyId;
     els.prompt.classList.remove('faded');
     const pressedNothing = keyId === null;
-    const correct = pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
+    const correct = round.needAll ? round.pressed.size === round.answers.size
+      : pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
     recordRound(round.expr, correct ? 'hit' : pressedNothing ? 'slow' : 'miss');
 
@@ -269,12 +282,13 @@
       state.streak = 0;
       state.ease = 2;
       if (tile) tile.classList.add('miss');
-      round.answers.forEach((id) => els.tiles[id].classList.add('valid'));
+      round.answers.forEach((id) => { if (!round.pressed.has(id)) els.tiles[id].classList.add('valid'); });
       window.Sound.wrong();
       const memoryKey = toTokens(round.expr).find((t) => t.atom && t.atom.attr === 'last');
       const why = round.answers.size === 0 ? 'Answer: press nothing'
         : memoryKey ? `Last key was ${KEYS.find((k) => k.id === memoryKey.atom.key).glyph}`
-        : pressedNothing ? 'Too slow' : 'Wrong key';
+        : pressedNothing ? (round.pressed.size ? `Too slow: ${round.pressed.size} of ${round.answers.size}` : 'Too slow')
+        : round.needAll && round.pressed.has(keyId) ? 'Already pressed that one' : 'Wrong key';
       showFeedback(why, 'bad');
       document.body.classList.add('shake');
       later(() => document.body.classList.remove('shake'), 350);
@@ -467,6 +481,9 @@
     els.mute.setAttribute('aria-pressed', String(muted));
     els.mute.blur();
   });
+
+  // Exposes state for manual testing when the page is opened with ?debug.
+  if (/[?&]debug\b/.test(location.search)) window.__notNotState = state;
 
   renderLegend();
   renderHard();

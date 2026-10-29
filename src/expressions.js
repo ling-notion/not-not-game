@@ -19,6 +19,9 @@
   const and = (a, b) => ({ type: 'and', a, b });
   // "missing: red green blue" lists three keys; the answer is the fourth one, not listed.
   const missing = (items) => ({ type: 'missing', items });
+  // "red and blue" means press both keys (in any order); each item names exactly one key.
+  const all = (items) => ({ type: 'all', items });
+  const needsAll = (e) => e.type === 'all';
   const ANYTHING = atom('any', 'anything');
   const NOTHING = atom('none', 'nothing');
   // "last key" means the key pressed in the previous round, resolved when the prompt is made.
@@ -41,6 +44,8 @@
         evaluate(e.b).forEach((id) => a.add(id));
         return a;
       }
+      case 'all':
+        return new Set(e.items.flatMap((item) => [...evaluate(item)]));
       case 'missing': {
         const listed = new Set(e.items.flatMap((item) => [...evaluate(item)]));
         return new Set(ALL_IDS.filter((id) => !listed.has(id)));
@@ -54,14 +59,16 @@
     }
   }
 
-  const PRECEDENCE = { missing: 0, or: 1, and: 2, not: 3, atom: 4 };
+  const PRECEDENCE = { missing: 0, all: 0, or: 1, and: 2, not: 3, atom: 4 };
 
   // Flattens an expression into display tokens, adding parentheses only where precedence needs them.
   function toTokens(e, parentPrec = 0) {
     const prec = PRECEDENCE[e.type];
     let tokens;
     if (e.type === 'atom') tokens = [{ kind: 'atom', text: e.value, atom: e }];
-    else if (e.type === 'missing') tokens = [{ kind: 'op', text: 'missing:' }, ...e.items.flatMap((item) => toTokens(item))];
+    else if (e.type === 'all') {
+      tokens = e.items.flatMap((item, i) => [...(i ? [{ kind: 'op', text: 'and' }] : []), ...toTokens(item, PRECEDENCE.or)]);
+    } else if (e.type === 'missing') tokens = [{ kind: 'op', text: 'missing:' }, ...e.items.flatMap((item) => toTokens(item))];
     else if (e.type === 'not') tokens = [{ kind: 'op', text: 'not' }, ...toTokens(e.e, prec)];
     else tokens = [...toTokens(e.a, prec), { kind: 'op', text: e.type }, ...toTokens(e.b, prec + 1)];
     if (prec < parentPrec) tokens = [{ kind: 'paren', text: '(' }, ...tokens, { kind: 'paren', text: ')' }];
@@ -74,24 +81,27 @@
     if (e.type === 'atom') return 0;
     if (e.type === 'not') return 1 + opCount(e.e);
     if (e.type === 'missing') return e.items.length - 1;
+    if (e.type === 'all') return e.items.length - 1 + e.items.reduce((n, item) => n + opCount(item), 0);
     return 1 + opCount(e.a) + opCount(e.b);
   }
 
   // Seconds of play at which each level begins, and the rule each level introduces.
-  // Ordered easiest to hardest: each level adds one rule, and every earlier rule keeps appearing.
+  // Ordered easiest to hardest. Each level unlocks one mechanic; `cap` is the most difficult
+  // prompt (see difficulty()) that level may show, so heavy combinations only arrive late.
   const LEVELS = [
-    { id: 'basic', at: 0, intro: 'Press the key that matches' },
-    { id: 'not', at: 5, intro: 'New: "not" means anything except' },
-    { id: 'nothing', at: 13, intro: 'New: "nothing" means don\'t press' },
-    { id: 'symbols', at: 24, intro: 'New: symbols instead of words' },
-    { id: 'or', at: 34, intro: 'New: "or"' },
-    { id: 'missing', at: 46, intro: 'New: press the one that\'s missing' },
-    { id: 'lyingColors', at: 58, intro: 'New: words lie about their color' },
-    { id: 'memory', at: 70, intro: 'New: "last key" means the key you just pressed' },
-    { id: 'shuffle', at: 82, intro: 'New: the colors and shapes swap keys' },
-    { id: 'fade', at: 96, intro: 'New: prompts fade, so read fast' },
-    { id: 'chaos', at: 110, intro: 'Chaos mode' },
-    { id: 'endless', at: 136, intro: 'Endless: it only gets faster' },
+    { id: 'basic', at: 0, cap: 0.5, intro: 'Press the key that matches' },
+    { id: 'not', at: 5, cap: 1.5, intro: 'New: "not" means anything except' },
+    { id: 'nothing', at: 13, cap: 2.5, intro: 'New: "nothing" means don\'t press' },
+    { id: 'symbols', at: 24, cap: 3, intro: 'New: symbols instead of words' },
+    { id: 'or', at: 34, cap: 3.5, intro: 'New: "or"' },
+    { id: 'and', at: 46, cap: 4.5, intro: 'New: "and" means press every key named' },
+    { id: 'missing', at: 58, cap: 5, intro: 'New: press the one that\'s missing' },
+    { id: 'lyingColors', at: 70, cap: 6, intro: 'New: words lie about their color' },
+    { id: 'memory', at: 82, cap: 6.5, intro: 'New: "last key" means the key you just pressed' },
+    { id: 'shuffle', at: 94, cap: 7, intro: 'New: the colors and shapes swap keys' },
+    { id: 'fade', at: 106, cap: 8, intro: 'New: prompts fade, so read fast' },
+    { id: 'chaos', at: 120, cap: 9.5, intro: 'Chaos mode' },
+    { id: 'endless', at: 146, cap: 11, intro: 'Endless: it only gets faster' },
   ];
 
   // Index of the level with this id, e.g. featureLevel('shuffle').
@@ -127,9 +137,11 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
     // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1800, 1750, 1750, 1700, 1650][level];
+    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1850, 1800, 1750, 1750, 1700, 1650][level];
     const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
-    return Math.max(1150, base - decay) + opCount(expr) * 260;
+    // Each extra key an "and" prompt needs gets time for another press.
+    const extraPresses = needsAll(expr) ? (expr.items.length - 1) * 420 : 0;
+    return Math.max(1150, base - decay) + opCount(expr) * 260 + extraPresses;
   }
 
   function makeRng(seed) {
@@ -147,7 +159,7 @@
   function mentionsNothing(expr) {
     if (expr.type === 'atom') return expr.attr === 'none' || expr.attr === 'any';
     if (expr.type === 'not') return mentionsNothing(expr.e);
-    if (expr.type === 'missing') return false;
+    if (expr.type === 'missing' || expr.type === 'all') return false;
     return mentionsNothing(expr.a) || mentionsNothing(expr.b);
   }
 
@@ -158,7 +170,7 @@
   function hasPointlessOr(expr) {
     if (expr.type === 'atom') return false;
     if (expr.type === 'not') return hasPointlessOr(expr.e);
-    if (expr.type === 'missing') return false;
+    if (expr.type === 'missing' || expr.type === 'all') return false;
     if (hasPointlessOr(expr.a) || hasPointlessOr(expr.b)) return true;
     if (expr.type !== 'or') return false;
     const a = evaluate(expr.a);
@@ -171,96 +183,152 @@
     return toTokens(expr).map((t) => (t.kind === 'atom' && !['none', 'any', 'last'].includes(t.atom.attr) ? 'x' : t.text)).join(' ');
   }
 
+  // How hard each mechanic is to process; a prompt's difficulty is the sum of what it uses.
+  const WEIGHTS = {
+    word: 0.5, nothing: 1, memory: 2, not: 1, or: 1.5,
+    missing: 2.5, missingMixed: 1, and2: 2.5, and3: 4.5,
+    symbols: 0.75, lyingColors: 1.5, fade: 2,
+  };
+
+  function exprDifficulty(e) {
+    switch (e.type) {
+      case 'atom':
+        if (e.attr === 'none' || e.attr === 'any') return WEIGHTS.nothing;
+        return e.attr === 'last' ? WEIGHTS.memory : WEIGHTS.word;
+      case 'not': return WEIGHTS.not + exprDifficulty(e.e);
+      case 'or': return WEIGHTS.or + exprDifficulty(e.a) + exprDifficulty(e.b);
+      case 'missing': {
+        const mixed = new Set(e.items.map((item) => item.attr)).size > 1;
+        return WEIGHTS.missing + (mixed ? WEIGHTS.missingMixed : 0);
+      }
+      case 'all': {
+        // Items cost only what they add beyond a plain word, e.g. "not not red" or "last key".
+        const extra = e.items.reduce((n, item) => n + exprDifficulty(item) - WEIGHTS.word, 0);
+        return (e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3) + extra;
+      }
+      default: return 0;
+    }
+  }
+
+  // Total difficulty of a prompt, including how it's displayed (symbols, lying colors, fading).
+  function difficulty(expr) {
+    const style = expr.style || {};
+    return exprDifficulty(expr)
+      + (style.symbols ? WEIGHTS.symbols : 0)
+      + (style.lyingColors ? WEIGHTS.lyingColors : 0)
+      + (style.fade ? WEIGHTS.fade : 0);
+  }
+
+  // Which logic mechanics a prompt uses, so a newly unlocked one can be featured.
+  function mechanicsOf(e, found = new Set()) {
+    if (e.type === 'atom') {
+      if (e.attr === 'none' || e.attr === 'any') found.add('nothing');
+      if (e.attr === 'last') found.add('memory');
+    } else if (e.type === 'not') {
+      found.add('not');
+      mechanicsOf(e.e, found);
+    } else if (e.type === 'or') {
+      found.add('or');
+      mechanicsOf(e.a, found);
+      mechanicsOf(e.b, found);
+    } else if (e.type === 'missing') found.add('missing');
+    else if (e.type === 'all') {
+      found.add('and');
+      e.items.forEach((item) => mechanicsOf(item, found));
+    }
+    return found;
+  }
+
+  const STYLE_MECHANICS = ['symbols', 'lyingColors', 'fade'];
+  const LOGIC_MECHANICS = ['not', 'nothing', 'or', 'and', 'missing', 'memory'];
+
   function createGenerator(rng = Math.random) {
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+    const weighted = (options) => {
+      const total = options.reduce((n, [, w]) => n + w, 0);
+      let r = rng() * total;
+      for (const [value, w] of options) if ((r -= w) < 0) return value;
+      return options[options.length - 1][0];
+    };
     const randomAtom = (attr = pick(ATTRS)) => atom(attr, pick(KEYS)[attr]);
-    const twoAtoms = () => {
-      const a = randomAtom();
-      let b = randomAtom();
-      while (b.attr === a.attr && b.value === a.value) b = randomAtom();
-      return [a, b];
-    };
-    // Memory templates need a previous key; without one they bail out and another template is picked.
-    let recentKey = null;
-    const NO_MEMORY = new Error('no last key');
-    const memory = () => { if (!recentKey) throw NO_MEMORY; return lastKey(recentKey); };
-    const threeKeys = () => [...KEYS].sort(() => rng() - 0.5).slice(0, 3);
-    // Three distinct values of one attribute, e.g. "missing: red green blue".
-    const missingSame = () => {
-      const attr = pick(ATTRS);
-      return missing(threeKeys().map((k) => atom(attr, k[attr])));
-    };
-    // Three keys each named by a different-looking attribute, e.g. "missing: red star down".
-    const missingMixed = () => missing(threeKeys().map((k) => { const attr = pick(ATTRS); return atom(attr, k[attr]); }));
     const notN = (e, n) => (n === 0 ? e : not(notN(e, n - 1)));
+    const shuffled = (arr) => [...arr].sort(() => rng() - 0.5);
+    let recentKey = null;
 
-    // Templates grouped by the level that introduces them.
-    // Prompt templates per level id; a level draws from its own list and every earlier one.
-    const TEMPLATES = {
-      basic: [() => randomAtom()],
-      not: [() => not(randomAtom()), () => randomAtom()],
-      nothing: [
-        () => notN(randomAtom(), 2),
-        () => NOTHING,
-        () => ANYTHING,
-        () => not(pick([NOTHING, ANYTHING])),
-        () => notN(randomAtom(), pick([1, 2, 3])),
-      ],
-      // Symbols are new to read, so the prompts themselves stay short.
-      symbols: [() => randomAtom(), () => not(randomAtom()), () => notN(randomAtom(), 2)],
-      or: [
-        () => or(...twoAtoms()),
-        () => not(or(...twoAtoms())),
-        () => or(not(randomAtom()), randomAtom()),
-      ],
-      missing: [() => missingSame(), () => missingSame(), () => missingMixed()],
-      lyingColors: [
-        () => or(not(randomAtom()), not(randomAtom())),
-        () => notN(or(...twoAtoms()), 2),
-        () => notN(randomAtom(), pick([2, 3, 4])),
-      ],
-      memory: [
-        () => memory(),
-        () => not(memory()),
-        () => or(memory(), randomAtom()),
-        () => not(or(memory(), randomAtom())),
-      ],
-      // Re-reading the pad is the challenge, so prompts stay short.
-      shuffle: [() => randomAtom(), () => not(randomAtom()), () => or(...twoAtoms())],
-      // Remembering the prompt is the challenge, so prompts are mid-length.
-      fade: [
-        () => not(or(...twoAtoms())),
-        () => or(not(randomAtom()), randomAtom()),
-        () => notN(randomAtom(), 3),
-        () => missingSame(),
-        () => or(notN(randomAtom(), 2), not(randomAtom())),
-      ],
-      chaos: [
-        () => missingMixed(),
-        () => notN(or(...twoAtoms()), 3),
-        () => not(or(notN(randomAtom(), 2), randomAtom())),
-        () => notN(or(memory(), randomAtom()), 2),
-      ],
-      endless: [
-        () => missingMixed(),
-        () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
-        () => notN(or(...twoAtoms()), 3),
-        () => not(or(notN(randomAtom(), 2), randomAtom())),
-      ],
-    };
+    // Builds a random logic expression from the unlocked mechanics, shallower as it nests.
+    // Higher caps nest deeper, so late levels can actually reach their harder prompts.
+    function build(has, cap, depth = 0) {
+      const leafChance = Math.max(0.12, (depth === 0 ? 0.4 : depth === 1 ? 0.6 : 0.8) - cap * 0.03);
+      const nodes = [];
+      if (has('not')) nodes.push(['not', 3]);
+      if (has('or')) nodes.push(['or', 2]);
+      if (!nodes.length || depth >= 3 || rng() < leafChance) {
+        return recentKey && has('memory') && rng() < 0.2 ? lastKey(recentKey) : randomAtom();
+      }
+      const node = weighted(nodes);
+      if (node === 'not') return not(build(has, cap, depth + 1));
+      return or(build(has, cap, depth + 1), build(has, cap, depth + 1));
+    }
+
+    // One-key items for "and" prompts: words, double negations, or the last key.
+    function andPrompt(has) {
+      const count = rng() < 0.65 ? 2 : 3;
+      const items = shuffled(KEYS).slice(0, count).map((k) => {
+        const roll = rng();
+        if (recentKey === k.id && has('memory') && roll < 0.25) return lastKey(k.id);
+        const word = randomAtom();
+        const base = atom(word.attr, k[word.attr]);
+        return has('not') && roll > 0.8 ? notN(base, 2) : base;
+      });
+      return all(items);
+    }
+
+    function missingPrompt() {
+      const keys = shuffled(KEYS).slice(0, 3);
+      const sameAttr = rng() < 0.6 ? pick(ATTRS) : null;
+      return missing(keys.map((k) => { const attr = sameAttr || pick(ATTRS); return atom(attr, k[attr]); }));
+    }
+
+    function candidate(has, cap) {
+      const shapes = [['logic', 6]];
+      if (has('and')) shapes.push(['and', 1.5]);
+      if (has('missing')) shapes.push(['missing', 1.2]);
+      if (has('nothing')) shapes.push(['nothing', 0.8]);
+      const shape = weighted(shapes);
+      if (shape === 'and') return andPrompt(has);
+      if (shape === 'missing') return missingPrompt();
+      if (shape === 'nothing') return notN(pick([NOTHING, ANYTHING]), pick([0, 0, 1, 2]));
+      return build(has, cap);
+    }
 
     const RECENT_FORMATS = 2;
     let last = '';
     let recentFormats = [];
     return function next(level, { lastKey: previousKey = null } = {}) {
       recentKey = previousKey;
-      for (let attempt = 0; attempt < 50; attempt++) {
-        // Favor the newest rule, but keep mixing in everything learned so far.
-        // Later levels lean less on the newest rule, so the hardest prompts stay occasional.
-        const newest = level >= 6 ? 0.4 : 0.6;
-        const tier = rng() < newest ? level : Math.floor(rng() * (level + 1));
-        let expr;
-        try { expr = pick(TEMPLATES[LEVELS[tier].id])(); } catch (err) { if (err === NO_MEMORY) continue; throw err; }
+      const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
+      const has = (id) => unlocked.has(id);
+      const { cap, id: newest } = LEVELS[level];
+      // Half the prompts at a level feature its new mechanic, so every mechanic gets tried.
+      const featurable = LOGIC_MECHANICS.includes(newest) || STYLE_MECHANICS.includes(newest);
+      const feature = featurable && rng() < 0.5 ? newest : null;
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const expr = candidate(has, cap);
+        const style = {};
+        STYLE_MECHANICS.forEach((m) => {
+          if (has(m)) style[m] = m === feature || rng() < (m === 'fade' ? 0.3 : 0.4);
+        });
+        if (style.symbols && !toTokens(expr).some((t) => t.atom && (t.atom.attr === 'dir' || t.atom.attr === 'shape'))) {
+          style.symbols = false;
+        }
+        expr.style = style;
+
+        const score = difficulty(expr);
+        if (score > cap) continue;
+        // Aim near the level's cap, but easy prompts still slip in now and then.
+        if (score < cap * 0.6 && rng() > 0.3) continue;
+        if (feature && LOGIC_MECHANICS.includes(feature) && !mechanicsOf(expr).has(feature)) continue;
+
         const text = toText(expr);
         const answers = evaluate(expr);
         // "Press nothing" only comes from prompts that say nothing outright, never from a contradiction.
@@ -275,13 +343,15 @@
       }
       last = '';
       recentFormats = ['x', ...recentFormats].slice(0, RECENT_FORMATS);
-      return randomAtom();
+      const fallback = randomAtom();
+      fallback.style = {};
+      return fallback;
     };
   }
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
-    atom, not, or, and, missing, lastKey, ANYTHING, NOTHING,
+    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, mechanicsOf, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

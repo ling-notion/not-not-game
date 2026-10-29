@@ -70,14 +70,18 @@ test('"press nothing" stays occasional at high levels', () => {
   assert.ok(nothing / runs < 0.25, `nothing rate ${nothing / runs}`);
 });
 
-test('generated prompts never use "and", and only say nothing outright', () => {
+test('"and" only joins one-key items at the top, and nothing is only said outright', () => {
   const next = N.createGenerator(N.makeRng(11));
   for (let level = 0; level < N.LEVELS.length; level++) {
     for (let i = 0; i < 500; i++) {
       const e = next(level, CTX);
       const text = toText(e);
       if (evaluate(e).size === 0) assert.match(text, /nothing|anything/, text);
-      assert.doesNotMatch(text, /\band\b/, text);
+      if (/\band\b/.test(text)) {
+        assert.equal(e.type, 'all', text);
+        e.items.forEach((item) => assert.equal(evaluate(item).size, 1, text));
+        assert.equal(evaluate(e).size, e.items.length, text);
+      }
     }
   }
 });
@@ -97,9 +101,11 @@ function parse(text) {
     if (t === 'anything') return ANYTHING;
     return word(t);
   };
-  const andExpr = () => { let e = primary(); while (toks[i] === 'and') { i++; e = and(e, primary()); } return e; };
-  const orExpr = () => { let e = andExpr(); while (toks[i] === 'or') { i++; e = or(e, andExpr()); } return e; };
-  return orExpr();
+  const orExpr = () => { let e = primary(); while (toks[i] === 'or') { i++; e = or(e, primary()); } return e; };
+  // Generated "and" is always top level: a list of keys to press.
+  const items = [orExpr()];
+  while (toks[i] === 'and') { i++; items.push(orExpr()); }
+  return items.length > 1 ? N.all(items) : items[0];
 }
 
 test('prompt text means exactly what the game grades', () => {
@@ -185,4 +191,28 @@ test('"missing" prompts list three distinct keys and accept only the fourth', ()
     assert.equal(evaluate(e).size, 1, toText(e));
   }
   assert.ok(seen > 80, `missing prompts seen: ${seen}`);
+});
+
+test('difficulty stays under each level\'s cap, features new mechanics, and keeps some easy prompts', () => {
+  const next = N.createGenerator(N.makeRng(81));
+  N.LEVELS.forEach((level, index) => {
+    const prompts = Array.from({ length: 1500 }, () => next(index, CTX));
+    prompts.forEach((e) => assert.ok(N.difficulty(e) <= level.cap, `${level.id}: ${toText(e)} = ${N.difficulty(e)}`));
+    if (['not', 'nothing', 'or', 'and', 'missing', 'memory'].includes(level.id)) {
+      const share = prompts.filter((e) => N.mechanicsOf(e).has(level.id)).length / prompts.length;
+      assert.ok(share > 0.25, `${level.id} featured in ${share}`);
+    }
+    if (index >= 7) {
+      const easy = prompts.filter((e) => N.difficulty(e) <= 1.5).length / prompts.length;
+      assert.ok(easy > 0.01 && easy < 0.2, `${level.id} easy share ${easy}`);
+    }
+  });
+});
+
+test('"and" prompts need every named key', () => {
+  const e = N.all([atom('color', 'red'), atom('shape', 'star')]);
+  assert.equal(toText(e), 'red and star');
+  assert.ok(N.needsAll(e));
+  assert.deepEqual(ids(e), ['left', 'up']);
+  assert.ok(N.difficulty(N.all([atom('dir', 'up'), atom('dir', 'down'), atom('dir', 'left')])) > N.difficulty(e));
 });

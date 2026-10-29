@@ -42,13 +42,16 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 13s | `nothing`, `anything`, stacked negations |
 | 24s | Arrow and shape symbols replace some words |
 | 34s | `or` |
-| 46s | `missing: red green blue`: press the key that isn't listed |
-| 58s | Words are drawn in misleading colors |
-| 70s | `last key`: the key you pressed in the previous round |
-| 82s | Shuffle: every 6 rounds the colors and shapes move to different arrows |
-| 96s | Fade: some prompts disappear after a short look |
-| 110s | Nested expressions and misleading symbol colors |
-| 136s | Endless: same rules, the timer keeps shrinking |
+| 46s | `red and blue`: press every key named, in any order |
+| 58s | `missing: red green blue`: press the key that isn't listed |
+| 70s | Words are drawn in misleading colors |
+| 82s | `last key`: the key you pressed in the previous round |
+| 94s | Shuffle: every 12 rounds the colors and shapes move to different arrows |
+| 106s | Fade: some prompts disappear after a short look |
+| 120s | Chaos: the difficulty cap rises so mechanics combine more |
+| 146s | Endless: same rules, the timer keeps shrinking |
+
+Each level unlocks a mechanic and raises a difficulty cap. Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS` in `src/expressions.js`). Prompts over the cap are rejected. Most prompts land near the cap, but easy ones still slip in now and then, and half the prompts at a new level feature its new mechanic.
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 
