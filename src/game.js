@@ -250,10 +250,12 @@
   const MAX_TIER = STREAK_TIERS.length;
   const streakTier = (n) => STREAK_TIERS.filter((t) => n >= t).length;
   const isMilestone = (n) => STREAK_TIERS.includes(n) || (n > 50 && n % 50 === 0);
+  // Each streak tier adds ×0.5 to points, from ×1 up to ×3.5 at a 50 streak.
+  const streakMultiplier = (n) => 1 + 0.5 * streakTier(n);
   function renderStreak() {
     const n = state.streak;
     const tier = streakTier(n);
-    els.streak.textContent = n >= 3 ? `${tier >= 4 ? '🔥 ' : ''}${n} streak` : '';
+    els.streak.textContent = n >= 3 ? `${tier >= 4 ? '🔥 ' : ''}${n} streak${tier ? ` ×${streakMultiplier(n)}` : ''}` : '';
     STREAK_TIERS.forEach((_, i) => els.streak.classList.toggle(`tier-${i + 1}`, i + 1 === tier));
   }
   function bumpStreak() {
@@ -266,7 +268,8 @@
     window.Sound.milestone(tier);
     els.streak.classList.add('milestone');
     later(() => els.streak.classList.remove('milestone'), 900);
-    els.combo.textContent = n >= 50 ? `${n} streak! Unstoppable` : n >= 40 ? `${n} streak! On fire` : `${n} streak!`;
+    const label = n >= 50 ? 'Unstoppable' : n >= 40 ? 'On fire' : '';
+    els.combo.textContent = `${n} streak! ${label ? `${label} · ` : ''}×${streakMultiplier(n)} points`;
     els.combo.className = `combo tier-${tier}`;
     void els.combo.offsetWidth;
     els.combo.classList.add('show');
@@ -417,8 +420,8 @@
     if (correct) {
       state.streak += 1;
       state.skill = Math.min(1.2, state.skill + 0.1);
-      // Points grow exponentially with the prompt's difficulty, plus a small streak bonus.
-      state.score += Math.max(1, Math.round(1.5 ** difficulty(round.expr))) + Math.floor(state.streak / 5);
+      // Points grow exponentially with the prompt's difficulty, then scale with the streak tier.
+      state.score += Math.round(Math.max(1, Math.round(1.5 ** difficulty(round.expr))) * streakMultiplier(state.streak));
       if (tile) tile.classList.add('hit');
       if (isMilestone(state.streak)) celebrateStreak(state.streak);
       else if (pressedNothing) window.Sound.correctNothing();
