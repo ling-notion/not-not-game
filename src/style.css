@@ -44,12 +44,12 @@ body.shake .stage { animation: shake 0.3s; }
 .heart.lost { color: #3a3a4a; }
 .hud-mid { position: absolute; left: 50%; transform: translateX(-50%); }
 /* The streak hangs to the right of the level so it never shifts the level off center. */
-.streak { position: absolute; left: calc(100% + 12px); white-space: nowrap; }
+.streak { position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); white-space: nowrap; }
 .level { color: var(--muted); font-size: 15px; }
 .streak { color: var(--accent); font-weight: 600; font-size: 15px; }
 .hard-badge {
-  position: absolute; right: calc(100% + 12px); white-space: nowrap;
-  padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 700;
+  position: absolute; right: calc(100% + 12px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  padding: 2px 8px; line-height: 1.4; border-radius: 999px; font-size: 13px; font-weight: 700;
   color: #ffb36b; background: rgba(255, 179, 107, 0.14);
 }
 .hard-badge[hidden] { display: none; }
@@ -111,7 +111,9 @@ body.shake .stage { animation: shake 0.3s; }
 .prompt .op { color: var(--muted); font-weight: 600; }
 .prompt .paren { color: var(--muted); font-weight: 400; }
 .prompt .word { white-space: nowrap; display: inline-flex; align-items: center; }
-.prompt .symbol { display: inline-flex; align-items: center; }
+.prompt .symbol { display: inline-flex; align-items: center; line-height: 1; }
+/* Sized to the text so shapes sit level with words at every font size. */
+.prompt .symbol svg { width: 0.8em; height: 0.8em; }
 
 .timer {
   margin: 22px auto 0;
