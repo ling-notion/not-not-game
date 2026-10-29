@@ -103,7 +103,7 @@
     });
   }
 
-  // Title card: a mini pad of the four keys, and each example's answer drawn as shapes.
+  // Pause card help: a mini pad of the four keys, and each example's answer drawn as shapes.
   function renderTitleCard() {
     const mini = (k, size) => `<span class="mini" style="--c:${HEX[k.color]}">${shapeSvg(k.shape, HEX[k.color], size)}</span>`;
     $('.legend').innerHTML = KEYS.map((k) => `
@@ -116,8 +116,6 @@
         group.split('+').map((id) => mini(KEYS.find((k) => k.id === id), 18)).join('<span class="plus">+</span>')
       ).join('<span class="or">/</span>');
     });
-    // The pause card shows the same legend above its examples.
-    $('#pause-help').insertAdjacentHTML('afterbegin', $('.legend').outerHTML);
   }
 
   const pickOther = (exclude) => {
