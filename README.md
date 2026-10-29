@@ -56,7 +56,7 @@ Levels only decide which mechanics exist. How hard prompts are follows a smooth 
 - about 12% are surprises a step above it
 - nothing is ever more than about one step above it
 
-A mechanic unlocked in the last 14 seconds is featured in simple prompts on its own. A skill rating also nudges the curve: it rises slowly with correct answers and drops after a miss, so struggling players get breathing room and strong players get pushed. The answer timer also shrinks smoothly, and harder prompts get extra reading time. Hard mode starts at level 5 (`or`), skipping the warm-up. It runs the difficulty clock 1.6× faster, aims prompts higher on the curve, and makes every timer 15% shorter. Open the game with `?debug` (or press D) to see each prompt's score breakdown.
+A mechanic unlocked in the last 14 seconds is featured in simple prompts on its own. A skill rating also nudges the curve: it rises slowly with correct answers and drops after a miss, so struggling players get breathing room and strong players get pushed. The answer timer also shrinks smoothly, and harder prompts get extra reading time. Hard mode starts a minute in, at level 6 (`and`), skipping the warm-up. It runs the difficulty clock 1.6× faster, aims prompts higher on the curve, and makes every timer 15% shorter. Open the game with `?debug` (or press D) to see each prompt's score breakdown.
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 

@@ -9,8 +9,8 @@
   const HARD_KEY = 'not-not-hard';
   // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
   // a little above the normal curve.
-  // It also starts 40 game-seconds in, skipping the single-word warm-up.
-  const HARD = { clock: 1.6, time: 0.85, boost: 0.8, start: 40 };
+  // It also starts a minute into the game, skipping the warm-up levels.
+  const HARD = { clock: 1.6, time: 0.85, boost: 0.8, start: 60 };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
