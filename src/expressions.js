@@ -144,10 +144,12 @@
     return Math.round(base + Math.max(0, difficulty(expr) - 0.5) * reading + extraPresses);
   }
 
-  // The typical prompt difficulty at a point in the game: rises quickly at first, then levels
-  // off, with a slow climb in endless. Individual prompts vary around it.
+  // The typical prompt difficulty at a point in the game: rises quickly at first, then keeps
+  // climbing steadily until MAX_DIFFICULTY. Individual prompts vary around it.
+  const MAX_DIFFICULTY = 9;
   function targetDifficulty(seconds) {
-    return 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.004 * Math.max(0, seconds - 150);
+    const curve = 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.012 * Math.max(0, seconds - 150);
+    return Math.min(MAX_DIFFICULTY, curve);
   }
 
   // Seconds a newly unlocked mechanic stays "new": it's featured, but in simple prompts.

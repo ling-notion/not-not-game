@@ -9,7 +9,7 @@
   const HARD_KEY = 'not-not-hard';
   // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
   // a little above the normal curve.
-  const HARD = { clock: 1.6, time: 0.8, boost: 0.35 };
+  const HARD = { clock: 1.6, time: 0.85, boost: 0.8 };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
