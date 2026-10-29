@@ -207,7 +207,7 @@
     sinceShuffle: 0, // rounds played since the pad last shuffled
     lastKey: null, // key pressed in the previous round, for "last key" prompts
     skill: 0, // nudges prompt difficulty: up with each correct answer, down after a miss
-    ease: 0, // rounds left of lighter prompts after a miss
+    ease: 0, // rounds left of extra answer time after a miss
     introQueue: [], // level ids whose intro cards are waiting to be read
     runNightmare: false,
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
@@ -314,6 +314,9 @@
   }
 
   const QUIET_LEVELS = ['chaos', 'endless'];
+  // A miss gives +30%, +20%, then +10% answer time over the next three rounds.
+  const EASE_ROUNDS = 3;
+  const EASE_STEP = 0.1;
   function nextRound() {
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
@@ -339,8 +342,8 @@
       return;
     }
     if (state.sinceShuffle > 0) state.sinceShuffle += 1;
-    // After a miss, two rounds with extra time let the player recover instead of spiralling.
-    const easing = state.ease > 0;
+    // After a miss, the next few rounds get extra time that tapers off, so the player can recover.
+    const easing = state.ease;
     if (easing) state.ease -= 1;
     const expr = state.runNightmare
       ? nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill * 0.5, target: nightmareTarget(), spiky: true })
@@ -369,7 +372,7 @@
 
   function startRound(expr, seconds, easing, freebie = false) {
     const modeTime = state.runNightmare ? NIGHTMARE.time : state.runHard ? HARD.time : 1;
-    const limit = timeLimit(state.level, seconds, expr) * modeTime * (easing ? 1.25 : 1);
+    const limit = timeLimit(state.level, seconds, expr) * modeTime * (1 + EASE_STEP * (easing || 0));
     const now = performance.now();
     state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), slots: needsAll(expr) ? andSlots(expr) : null, pressed: new Set(), limit, deadline: now + limit, active: true, freebie };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
@@ -436,8 +439,9 @@
         state.lives -= 1;
         if (state.streak >= STREAK_TIERS[0]) { window.Sound.comboBreak(); showBanner(`Streak broken at ${state.streak}`); }
         state.streak = 0;
-        state.ease = 2;
-        state.skill = Math.max(-1.5, Math.min(0, state.skill) - 0.8);
+        state.ease = EASE_ROUNDS;
+        // Prompts stay about as hard: a miss only trims the skill nudge a little.
+        state.skill = Math.max(-0.5, state.skill - 0.2);
       }
       if (tile) tile.classList.add('miss');
       round.answers.forEach((id) => { if (!round.pressed.has(id)) els.tiles[id].classList.add('valid'); });
@@ -819,7 +823,7 @@
         <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
         <dt>Score</dt><dd><b>${score.toFixed(2)}</b>${round.expr.aim == null ? ' · intro' : ` · aimed ${round.expr.aim.toFixed(2)}`}</dd>
         <dt>Target</dt><dd>${round.expr.target == null ? 'free round' : round.expr.target.toFixed(2)} (curve ${targetDifficulty(Number(seconds)).toFixed(2)}, skill ${state.skill >= 0 ? '+' : ''}${state.skill.toFixed(1)})</dd>
-        <dt>Easing</dt><dd>${easing ? 'yes, +25% time' : 'no'}</dd>
+        <dt>Easing</dt><dd>${easing ? `yes, +${Math.round(EASE_STEP * easing * 100)}% time` : 'no'}</dd>
       </dl>
       <div class="debug-bar"><span style="width:${pct}%"></span></div>
       <table>${parts.map(([name, w]) => `<tr><td>${name}</td><td>${w > 0 ? '+' : ''}${w}</td></tr>`).join('')}</table>
