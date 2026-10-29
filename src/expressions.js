@@ -22,6 +22,35 @@
   // "red and blue" means press both keys (in any order); each item names exactly one key.
   const all = (items) => ({ type: 'all', items });
   const needsAll = (e) => e.type === 'all';
+  // The keys that satisfy each part of an "and" prompt; each part needs its own pressed key.
+  const andSlots = (e) => e.items.map((item) => evaluate(item));
+  // True when every pressed key can stand for a different part ("red and not blue": red plus one non-blue).
+  function canFill(slots, pressed, used = new Set()) {
+    const keys = [...pressed];
+    if (keys.length > slots.length) return false;
+    const assign = (i) => {
+      if (i === keys.length) return true;
+      for (let s = 0; s < slots.length; s++) {
+        if (used.has(s) || !slots[s].has(keys[i])) continue;
+        used.add(s);
+        if (assign(i + 1)) return true;
+        used.delete(s);
+      }
+      return false;
+    };
+    return assign(0);
+  }
+  // True when some set of distinct keys fills every part.
+  function solvable(slots, i = 0, taken = new Set()) {
+    if (i === slots.length) return true;
+    return [...slots[i]].some((id) => {
+      if (taken.has(id)) return false;
+      taken.add(id);
+      const ok = solvable(slots, i + 1, taken);
+      taken.delete(id);
+      return ok;
+    });
+  }
   const ANYTHING = atom('any', 'anything');
   const NOTHING = atom('none', 'nothing');
   // "last key" means the key pressed in the previous round, resolved when the prompt is made.
@@ -206,7 +235,7 @@
     // "or" makes prompts easier: more keys count as right.
     word: 0.5, nothing: 1, memory: 2, not: 1, or: -0.5,
     stacked: 0.3, notGroup: 2.5, stackedGroup: 0.6, nestedGroup: 1,
-    missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5,
+    missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5, andChoice: 2,
     symbols: 0.75, lyingColors: 1.5,
   };
 
@@ -242,7 +271,9 @@
           parts.push([`and (${e.items.length} keys)`, e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3]);
         }
         // Items cost only what they add beyond a plain word, e.g. "not not red" or "last key".
+        // An item with several right keys ("not yellow") means choosing one, which costs like an extra key.
         e.items.forEach((item) => {
+          if (e.type === 'all' && evaluate(item).size > 1) parts.push(['choice in and', WEIGHTS.andChoice]);
           const inner = [];
           scoreExpr(item, inner);
           inner.filter(([name]) => name !== 'word').forEach((p) => parts.push(p));
@@ -334,18 +365,31 @@
       return or(build(has, cap, depth + 1, true), build(has, cap, depth + 1, true));
     }
 
-    // One-key items for "and" prompts: words, double negations, or the last key.
+    // Items for "and" prompts: words, double negations, the last key, or (late) a choice like
+    // "not yellow", where any key but yellow works as long as it isn't already used by another part.
     function andPrompt(has) {
       const count = rng() < 0.65 ? 2 : 3;
-      const items = shuffled(KEYS).slice(0, count).map((k) => {
-        const roll = rng();
-        if (recentKey === k.id && has('memory') && roll < 0.25) return lastKey(k.id);
-        const word = randomAtom();
-        const base = atom(word.attr, k[word.attr]);
-        // Endless doubles the negation chance, for heavier "and" prompts.
-        return has('not') && roll > (has('endless') ? 0.6 : 0.8) ? notN(base, 2) : base;
-      });
-      return all(items);
+      const choiceChance = has('not') ? (has('endless') ? 0.15 : has('chaos') ? 0.08 : 0) : 0;
+      for (let tries = 0; tries < 10; tries++) {
+        const keys = shuffled(KEYS).slice(0, count);
+        let choices = 0;
+        const items = keys.map((k) => {
+          const roll = rng();
+          if (recentKey === k.id && has('memory') && roll < 0.25) return lastKey(k.id);
+          const word = randomAtom();
+          const base = atom(word.attr, k[word.attr]);
+          // At most one choice per prompt, and it never negates a key another part names.
+          if (!choices && rng() < choiceChance) {
+            const other = shuffled(KEYS).find((o) => !keys.includes(o));
+            if (other) { choices += 1; const attr = pick(ATTRS); return not(atom(attr, other[attr])); }
+          }
+          // Endless doubles the negation chance, for heavier "and" prompts.
+          return has('not') && roll > (has('endless') ? 0.6 : 0.8) ? notN(base, 2) : base;
+        });
+        const e = all(items);
+        if (solvable(andSlots(e))) return e;
+      }
+      return all(shuffled(KEYS).slice(0, 2).map((k) => atom('color', k.color)));
     }
 
     // In endless, items can be compound ("not not star", "last key") for heavier prompts.
@@ -504,7 +548,7 @@
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
-    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, hasStackedNot, ANYTHING, NOTHING,
+    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, hasStackedNot, andSlots, canFill, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, targetDifficulty, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

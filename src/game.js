@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, ANYTHING, mechanicsOf, hasStackedNot, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, ANYTHING, mechanicsOf, hasStackedNot, andSlots, canFill, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -30,6 +30,7 @@
     symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
     or: { title: '"or" gives you a choice', body: 'Either key works.', expr: or(c('red'), c('blue')) },
     and: { title: '"and" means press them all', body: 'Press every key named, in any order.', expr: all([c('red'), c('blue')]) },
+    andChoice: { title: 'Each part needs its own key', body: 'Here: press red, plus one other key that isn\'t blue.', expr: all([c('red'), not(c('blue'))]) },
     lyingColors: { title: 'Colors can lie', body: 'Go by what the text says, not the color it is written in. Here the word says green, so press green.', expr: c('green'), lying: true },
     memory: { title: '"last key" is the key you just pressed', body: 'Press the same key you answered with last round.', icon: '↺' },
     shuffle: { title: 'The keys shuffle', body: 'Every so often the colors and shapes swap keys. Check the pad before answering.', icon: '🔀' },
@@ -304,6 +305,8 @@
     els.prompt.textContent = 'Get ready…';
     if (!nightmare && !loadSeen().has('basic')) showIntros(['basic']);
     renderNightmare();
+    // Boss music plays only during nightmare runs.
+    if (nightmare) window.Sound.startMusic(); else window.Sound.stopMusic();
     later(nextRound, 1100);
   }
 
@@ -363,7 +366,7 @@
     const modeTime = state.runNightmare ? NIGHTMARE.time : state.runHard ? HARD.time : 1;
     const limit = timeLimit(state.level, seconds, expr) * modeTime * (easing ? 1.25 : 1);
     const now = performance.now();
-    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true, freebie };
+    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), slots: needsAll(expr) ? andSlots(expr) : null, pressed: new Set(), limit, deadline: now + limit, active: true, freebie };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
     renderPrompt(expr);
@@ -394,11 +397,11 @@
     const round = state.round;
     if (!round || !round.active) return;
     // "and" prompts stay open until every named key is pressed once; any other press fails.
-    if (round.needAll && keyId && round.answers.has(keyId) && !round.pressed.has(keyId)) {
+    if (round.needAll && keyId && !round.pressed.has(keyId) && canFill(round.slots, new Set([...round.pressed, keyId]))) {
       round.pressed.add(keyId);
       els.tiles[keyId].classList.add('hit');
-      if (round.pressed.size < round.answers.size) {
-        showFeedback(`${round.pressed.size} of ${round.answers.size}`, 'good');
+      if (round.pressed.size < round.slots.length) {
+        showFeedback(`${round.pressed.size} of ${round.slots.length}`, 'good');
         return;
       }
     }
@@ -406,7 +409,7 @@
     // After an "and" prompt there's no single last key, so memory prompts wait a round.
     state.lastKey = round.needAll ? null : keyId;
     const pressedNothing = keyId === null;
-    const correct = round.needAll ? round.pressed.size === round.answers.size
+    const correct = round.needAll ? round.pressed.size === round.slots.length
       : pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
     if (correct || !round.freebie) recordRound(round.expr, correct ? 'hit' : pressedNothing ? 'slow' : 'miss');
@@ -437,7 +440,7 @@
       const memoryKey = toTokens(round.expr).find((t) => t.atom && t.atom.attr === 'last');
       const why = round.answers.size === 0 ? 'Answer: press nothing'
         : memoryKey ? `Last key was ${KEYS.find((k) => k.id === memoryKey.atom.key).glyph}`
-        : pressedNothing ? (round.pressed.size ? `Too slow: ${round.pressed.size} of ${round.answers.size}` : 'Too slow')
+        : pressedNothing ? (round.pressed.size ? `Too slow: ${round.pressed.size} of ${round.slots ? round.slots.length : round.answers.size}` : 'Too slow')
         : round.needAll && round.pressed.has(keyId) ? 'Already pressed that one' : 'Wrong key';
       showFeedback(round.freebie ? `${why}. Free round, no life lost` : why, 'bad');
       document.body.classList.add('shake');
@@ -498,6 +501,7 @@
 
   function endGame() {
     state.phase = 'over';
+    window.Sound.stopMusic();
     state.round = null;
     document.body.classList.remove('playing');
     window.Sound.gameOver();
@@ -555,6 +559,7 @@
     if (state.phase !== 'playing' || state.pausedAt) return;
     state.pausedAt = performance.now();
     els.paused.hidden = false;
+    window.Sound.stopMusic();
     document.body.classList.add('is-paused');
   }
 
@@ -566,6 +571,7 @@
     state.pausedAt = 0;
     els.paused.hidden = true;
     document.body.classList.remove('is-paused');
+    if (state.runNightmare) window.Sound.startMusic();
     if (state.pendingRound) { state.pendingRound = false; nextRound(); }
   }
 
@@ -580,12 +586,13 @@
     try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (_) { /* storage unavailable */ }
   }
   // Intro ids for the rules a prompt actually shows, in teaching order.
-  const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
+  const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'andChoice', 'lyingColors', 'memory', 'missing'];
   function rulesIn(expr) {
     const found = mechanicsOf(expr);
     const atoms = toTokens(expr).filter((t) => t.atom).map((t) => t.atom.attr);
     found.delete('nothing');
     if (hasStackedNot(expr)) found.add('stacked');
+    if (needsAll(expr) && andSlots(expr).some((slot) => slot.size > 1)) found.add('andChoice');
     if (atoms.includes('none')) found.add('nothing');
     if (atoms.includes('any')) found.add('anything');
     const style = expr.style || {};
@@ -628,6 +635,15 @@
       return `<span style="color:${color}">${t.text}</span>`;
     }).join(' ');
     const answers = [...evaluate(intro.expr)];
+    const mini = (id) => { const k = KEYS.find((key) => key.id === id); return shapeSvg(k.shape, HEX[k.color], 22); };
+    if (needsAll(intro.expr)) {
+      // One group per part; a choice part leaves out keys another part already needs.
+      const slots = andSlots(intro.expr);
+      const fixed = new Set(slots.filter((sl) => sl.size === 1).flatMap((sl) => [...sl]));
+      const parts = slots.map((sl) => (sl.size === 1 ? [...sl] : [...sl].filter((id) => !fixed.has(id))))
+        .map((ids) => (ids.length > 1 ? `<span class="paren">(</span>${ids.map(mini).join('<span class="or">/</span>')}<span class="paren">)</span>` : mini(ids[0])));
+      return `<div class="intro-prompt">${text}</div><div class="intro-arrow">→</div><div class="intro-keys">${parts.join('<span class="or">+</span>')}</div>`;
+    }
     const keys = answers.length
       ? answers.map((id) => { const k = KEYS.find((key) => key.id === id); return shapeSvg(k.shape, HEX[k.color], 22); })
         .join(`<span class="or">${needsAll(intro.expr) ? '+' : '/'}</span>`)

@@ -20,9 +20,9 @@
   }
 
   // One enveloped oscillator note; `slide` bends the pitch toward a target frequency.
-  function tone(freq, { start = 0, dur = 0.15, type = 'sine', vol = 0.6, slide } = {}) {
+  function tone(freq, { start = 0, dur = 0.15, type = 'sine', vol = 0.6, slide, at, dest } = {}) {
     if (muted || !ensure()) return;
-    const t = ctx.currentTime + start;
+    const t = at ?? ctx.currentTime + start;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
@@ -31,9 +31,54 @@
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain).connect(master);
+    osc.connect(gain).connect(dest || master);
     osc.start(t);
     osc.stop(t + dur + 0.02);
+  }
+
+  // A short burst of filtered noise, for the music's snare and hi-hats.
+  let noiseBuffer = null;
+  function noise(at, { dur = 0.05, vol = 0.2, freq = 6000, dest } = {}) {
+    if (muted || !ensure()) return;
+    if (!noiseBuffer) {
+      noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    const src = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    src.buffer = noiseBuffer;
+    filter.type = 'highpass';
+    filter.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(filter).connect(gain).connect(dest || master);
+    src.start(at);
+    src.stop(at + dur + 0.02);
+  }
+
+  // Boss music for nightmare mode: a 168 bpm loop in A minor (Am, F, G, E), scheduled a little ahead.
+  const STEP = 60 / 168 / 4; // one sixteenth note, in seconds
+  const CHORDS = [[220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66], [164.81, 207.65, 246.94]];
+  const BASS = [55, 55, 0, 55, 55, 0, 65.41, 55, 55, 55, 0, 55, 49, 0, 51.91, 0];
+  let music = null;
+  function scheduleStep(i, at) {
+    const bar = Math.floor(i / 16) % CHORDS.length;
+    const step = i % 16;
+    const root = CHORDS[bar][0] / 4;
+    const bass = BASS[step] && root * (BASS[step] / 55);
+    if (bass) {
+      tone(bass, { at, dur: STEP * 0.9, type: 'sawtooth', vol: 0.35, dest: music.gain });
+      tone(bass * 2, { at, dur: STEP * 0.6, type: 'square', vol: 0.08, dest: music.gain });
+    }
+    if (step % 4 === 0) tone(150, { at, dur: 0.14, type: 'sine', vol: 0.9, slide: 40, dest: music.gain });
+    if (step === 4 || step === 12) noise(at, { dur: 0.12, vol: 0.35, freq: 1800, dest: music.gain });
+    if (step % 2 === 1) noise(at, { dur: 0.03, vol: 0.12, freq: 8000, dest: music.gain });
+    // A climbing arpeggio over the chord, an octave up on the second half of each bar.
+    const chord = CHORDS[bar];
+    const note = chord[step % 3] * (step >= 8 ? 4 : 2);
+    tone(note, { at, dur: STEP * 0.8, type: 'square', vol: 0.06, dest: music.gain });
   }
 
   // Each arrow gets its own note from a major pentatonic chord so presses sound musical together.
@@ -99,6 +144,30 @@
     gameOver() {
       [392, 349.23, 311.13, 261.63].forEach((f, i) =>
         tone(f, { start: i * 0.16, dur: 0.3, type: 'triangle', vol: 0.4 }));
+    },
+    startMusic() {
+      if (music || !ensure()) return;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.32;
+      gain.connect(master);
+      music = { gain, step: 0, next: ctx.currentTime + 0.1, timer: 0 };
+      const pump = () => {
+        while (music && music.next < ctx.currentTime + 0.12) {
+          scheduleStep(music.step, music.next);
+          music.step += 1;
+          music.next += STEP;
+        }
+      };
+      pump();
+      music.timer = setInterval(pump, 25);
+    },
+    stopMusic() {
+      if (!music) return;
+      clearInterval(music.timer);
+      const { gain } = music;
+      gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08);
+      setTimeout(() => gain.disconnect(), 400);
+      music = null;
     },
     toggleMute() {
       muted = !muted;
