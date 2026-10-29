@@ -1,0 +1,10 @@
+{
+  "name": "not-not-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A browser game about reading logic expressions under time pressure",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "python3 -m http.server 8000"
+  }
+}
