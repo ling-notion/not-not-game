@@ -156,6 +156,8 @@
   const clearTimers = () => { state.timers.forEach(clearTimeout); state.timers = []; };
   const elapsed = () => (performance.now() - state.startedAt) / 1000;
   // Seconds on the difficulty clock, which hard mode runs faster and starts ahead.
+  // Level number shown to the player: hard mode counts from 1 at its later starting level.
+  const shownLevel = () => state.level + 1 - (state.runHard ? levelFor(HARD.start) : 0);
   const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed());
 
   function updateHud() {
@@ -163,7 +165,7 @@
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
     els.streak.textContent = state.streak >= 3 ? `${state.streak} streak` : '';
-    els.level.textContent = `Level ${state.level + 1}`;
+    els.level.textContent = `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
     els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
@@ -195,7 +197,7 @@
     document.body.classList.add('playing');
     showFeedback('', '');
     updateHud();
-    showBanner(hard ? `Hard mode: starting at level ${state.level + 1}` : LEVELS[0].intro);
+    showBanner(hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
     els.prompt.textContent = 'Get ready…';
     later(nextRound, 1100);
   }
@@ -325,7 +327,7 @@
       rows.push(`L${level + 1} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
     });
     const lines = [
-      `Not not game 🧠 ${state.score} pts · Level ${state.level + 1}${state.runHard ? ' · 🌶️ Hard' : ''}`,
+      `Not not game 🧠 ${state.score} pts · Level ${shownLevel()}${state.runHard ? ' · 🌶️ Hard' : ''}`,
       `🔥 Best streak ${state.bestStreak}`,
       ...rows,
     ];
@@ -505,7 +507,7 @@
     const level = LEVELS[state.level];
     const seconds = gameSeconds().toFixed(1);
     if (!round) {
-      debugEl.innerHTML = `<h2>Debug</h2><p>Level ${state.level + 1}: ${level.id}</p><p>No prompt yet</p>`;
+      debugEl.innerHTML = `<h2>Debug</h2><p>Level ${shownLevel()} (${level.id})</p><p>No prompt yet</p>`;
       return;
     }
     const parts = difficultyParts(round.expr);
@@ -515,7 +517,7 @@
     debugEl.innerHTML = `
       <h2>Debug <span>D to hide</span></h2>
       <dl>
-        <dt>Level</dt><dd>${state.level + 1}: ${level.id}</dd>
+        <dt>Level</dt><dd>${shownLevel()} (${level.id})</dd>
         <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
         <dt>Score</dt><dd><b>${score.toFixed(2)}</b>${round.expr.aim == null ? ' · new mechanic' : ` · aimed ${round.expr.aim.toFixed(2)}`}</dd>
         <dt>Target</dt><dd>${round.expr.target.toFixed(2)} (curve ${targetDifficulty(Number(seconds)).toFixed(2)}, skill ${state.skill >= 0 ? '+' : ''}${state.skill.toFixed(1)})</dd>
