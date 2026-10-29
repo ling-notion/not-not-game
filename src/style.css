@@ -383,3 +383,5 @@ body.is-paused .prompt { filter: blur(14px); }
 .intro-keys .or { color: var(--muted); }
 .intro-none { color: var(--muted); font-weight: 600; }
 .intro-icon { font-size: 40px; line-height: 1; }
+.card h1.title { display: flex; align-items: center; gap: 0.25em; }
+.title-dog { width: 1.35em; height: 1.35em; object-fit: contain; flex: none; }
