@@ -304,3 +304,4 @@ body.is-paused .prompt { filter: blur(14px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.toggle-note { color: var(--muted); font-size: 13px; }
