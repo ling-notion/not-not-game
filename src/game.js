@@ -536,6 +536,9 @@
   renderLegend();
   renderHard();
   renderDebug(false);
+  // The ?v= number on this script's URL doubles as the visible version, to spot stale caches.
+  const ownSrc = [...document.scripts].map((el) => el.src).find((src) => src.includes('game.js')) || '';
+  $('#version').textContent = (ownSrc.match(/[?&]v=(\d+)/) || [, '?'])[1];
   updateHud();
   els.best.textContent = best;
   requestAnimationFrame(tick);
