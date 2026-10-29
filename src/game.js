@@ -167,7 +167,7 @@
     els.title.hidden = true;
     els.over.hidden = true;
     document.body.classList.add('playing');
-    els.hard.disabled = true;
+    els.hard.classList.add('locked');
     showFeedback('', '');
     updateHud();
     showBanner(LEVELS[0].intro);
@@ -283,7 +283,7 @@
     state.phase = 'over';
     state.round = null;
     document.body.classList.remove('playing');
-    els.hard.disabled = false;
+    els.hard.classList.remove('locked');
     window.Sound.gameOver();
     if (state.score > best) {
       best = state.score;
@@ -383,7 +383,10 @@
   // Only switchable between games, so a run's score always reflects one setting.
   els.hard.addEventListener('click', () => {
     els.hard.blur();
-    if (state.phase === 'playing') return;
+    if (state.phase === 'playing') {
+      showBanner('Hard mode can be changed after this game');
+      return;
+    }
     hard = !hard;
     try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }
     best = loadBest();
