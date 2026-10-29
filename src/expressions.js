@@ -141,7 +141,10 @@
     const reading = 230 * (0.55 + 0.45 * Math.exp(-seconds / 150));
     // Each extra key an "and" prompt needs gets time for another press.
     const extraPresses = needsAll(expr) ? (expr.items.length - 1) * 420 : 0;
-    return Math.round(base + Math.max(0, difficulty(expr) - 0.5) * reading + extraPresses);
+    // Once chaos mode begins, every window tightens gradually over 90s, to at most 10% shorter.
+    const chaosAt = LEVELS.find((l) => l.id === 'chaos').at;
+    const squeeze = 1 - 0.1 * Math.min(1, Math.max(0, seconds - chaosAt) / 90);
+    return Math.round((base + Math.max(0, difficulty(expr) - 0.5) * reading + extraPresses) * squeeze);
   }
 
   // The typical prompt difficulty at a point in the game: rises quickly at first, then keeps
