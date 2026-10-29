@@ -17,6 +17,8 @@
   const not = (e) => ({ type: 'not', e });
   const or = (a, b) => ({ type: 'or', a, b });
   const and = (a, b) => ({ type: 'and', a, b });
+  // "missing: red green blue" lists three keys; the answer is the fourth one, not listed.
+  const missing = (items) => ({ type: 'missing', items });
   const ANYTHING = atom('any', 'anything');
   const NOTHING = atom('none', 'nothing');
   // "last key" means the key pressed in the previous round, resolved when the prompt is made.
@@ -39,6 +41,10 @@
         evaluate(e.b).forEach((id) => a.add(id));
         return a;
       }
+      case 'missing': {
+        const listed = new Set(e.items.flatMap((item) => [...evaluate(item)]));
+        return new Set(ALL_IDS.filter((id) => !listed.has(id)));
+      }
       case 'and': {
         const b = evaluate(e.b);
         return new Set([...evaluate(e.a)].filter((id) => b.has(id)));
@@ -48,13 +54,14 @@
     }
   }
 
-  const PRECEDENCE = { or: 1, and: 2, not: 3, atom: 4 };
+  const PRECEDENCE = { missing: 0, or: 1, and: 2, not: 3, atom: 4 };
 
   // Flattens an expression into display tokens, adding parentheses only where precedence needs them.
   function toTokens(e, parentPrec = 0) {
     const prec = PRECEDENCE[e.type];
     let tokens;
     if (e.type === 'atom') tokens = [{ kind: 'atom', text: e.value, atom: e }];
+    else if (e.type === 'missing') tokens = [{ kind: 'op', text: 'missing:' }, ...e.items.flatMap((item) => toTokens(item))];
     else if (e.type === 'not') tokens = [{ kind: 'op', text: 'not' }, ...toTokens(e.e, prec)];
     else tokens = [...toTokens(e.a, prec), { kind: 'op', text: e.type }, ...toTokens(e.b, prec + 1)];
     if (prec < parentPrec) tokens = [{ kind: 'paren', text: '(' }, ...tokens, { kind: 'paren', text: ')' }];
@@ -66,6 +73,7 @@
   function opCount(e) {
     if (e.type === 'atom') return 0;
     if (e.type === 'not') return 1 + opCount(e.e);
+    if (e.type === 'missing') return e.items.length - 1;
     return 1 + opCount(e.a) + opCount(e.b);
   }
 
@@ -77,10 +85,12 @@
     { at: 27, intro: 'New: "or"' },
     { at: 40, intro: 'New: "last key" means the key you just pressed' },
     { at: 52, intro: 'New: the colors and shapes swap keys', feature: 'shuffle' },
-    { at: 64, intro: 'New: words lie about their color', feature: 'lyingColors' },
-    { at: 77, intro: 'New: symbols instead of words', feature: 'symbols' },
-    { at: 92, intro: 'Chaos mode', feature: 'lyingSymbols' },
-    { at: 120, intro: 'Endless: it only gets faster' },
+    { at: 64, intro: 'New: press the one that\'s missing' },
+    { at: 76, intro: 'New: words lie about their color', feature: 'lyingColors' },
+    { at: 88, intro: 'New: symbols instead of words', feature: 'symbols' },
+    { at: 100, intro: 'New: prompts fade, so read fast', feature: 'fade' },
+    { at: 114, intro: 'Chaos mode', feature: 'lyingSymbols' },
+    { at: 140, intro: 'Endless: it only gets faster' },
   ];
 
   // First level index with a feature flag, e.g. featureLevel('shuffle').
@@ -116,7 +126,7 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
     // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1800, 1750, 1700, 1650][level];
+    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1800, 1750, 1750, 1700, 1650][level];
     const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
     return Math.max(1150, base - decay) + opCount(expr) * 260;
   }
@@ -136,6 +146,7 @@
   function mentionsNothing(expr) {
     if (expr.type === 'atom') return expr.attr === 'none' || expr.attr === 'any';
     if (expr.type === 'not') return mentionsNothing(expr.e);
+    if (expr.type === 'missing') return false;
     return mentionsNothing(expr.a) || mentionsNothing(expr.b);
   }
 
@@ -146,6 +157,7 @@
   function hasPointlessOr(expr) {
     if (expr.type === 'atom') return false;
     if (expr.type === 'not') return hasPointlessOr(expr.e);
+    if (expr.type === 'missing') return false;
     if (hasPointlessOr(expr.a) || hasPointlessOr(expr.b)) return true;
     if (expr.type !== 'or') return false;
     const a = evaluate(expr.a);
@@ -171,6 +183,14 @@
     let recentKey = null;
     const NO_MEMORY = new Error('no last key');
     const memory = () => { if (!recentKey) throw NO_MEMORY; return lastKey(recentKey); };
+    const threeKeys = () => [...KEYS].sort(() => rng() - 0.5).slice(0, 3);
+    // Three distinct values of one attribute, e.g. "missing: red green blue".
+    const missingSame = () => {
+      const attr = pick(ATTRS);
+      return missing(threeKeys().map((k) => atom(attr, k[attr])));
+    };
+    // Three keys each named by a different-looking attribute, e.g. "missing: red star down".
+    const missingMixed = () => missing(threeKeys().map((k) => { const attr = pick(ATTRS); return atom(attr, k[attr]); }));
     const notN = (e, n) => (n === 0 ? e : not(notN(e, n - 1)));
 
     // Templates grouped by the level that introduces them.
@@ -197,17 +217,22 @@
       ],
       // Shuffle level: short prompts, since re-reading the pad is the challenge.
       [() => randomAtom(), () => not(randomAtom()), () => or(...twoAtoms())],
+      [() => missingSame(), () => missingSame(), () => missingMixed()],
       [
         () => or(not(randomAtom()), not(randomAtom())),
         () => notN(or(...twoAtoms()), 2),
       ],
       [() => notN(randomAtom(), pick([2, 3, 4])), () => or(notN(randomAtom(), 2), not(randomAtom()))],
+      // Fade level: mid-length prompts, since remembering them is the challenge.
+      [() => not(or(...twoAtoms())), () => or(not(randomAtom()), randomAtom()), () => notN(randomAtom(), 3), () => missingSame()],
       [
+        () => missingMixed(),
         () => notN(or(...twoAtoms()), 3),
         () => not(or(notN(randomAtom(), 2), randomAtom())),
         () => notN(or(memory(), randomAtom()), 2),
       ],
       [
+        () => missingMixed(),
         () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
         () => notN(or(...twoAtoms()), 3),
         () => not(or(notN(randomAtom(), 2), randomAtom())),
@@ -246,7 +271,7 @@
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
-    atom, not, or, and, lastKey, ANYTHING, NOTHING,
+    atom, not, or, and, missing, lastKey, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

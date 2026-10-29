@@ -43,10 +43,12 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 27s | `or` |
 | 40s | `last key`: the key you pressed in the previous round |
 | 52s | Shuffle: every 6 rounds the colors and shapes move to different arrows |
-| 64s | Words are drawn in misleading colors |
-| 77s | Arrow and shape symbols replace some words |
-| 92s | Nested expressions and misleading symbol colors |
-| 120s | Endless: same rules, the timer keeps shrinking |
+| 64s | `missing: red green blue`: press the key that isn't listed |
+| 76s | Words are drawn in misleading colors |
+| 88s | Arrow and shape symbols replace some words |
+| 100s | Fade: some prompts disappear after a short look |
+| 114s | Nested expressions and misleading symbol colors |
+| 140s | Endless: same rules, the timer keeps shrinking |
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 

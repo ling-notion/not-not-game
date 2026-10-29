@@ -13,6 +13,7 @@
   const SYMBOLS = featureLevel('symbols');
   const LYING_SYMBOLS = featureLevel('lyingSymbols');
   const SHUFFLE = featureLevel('shuffle');
+  const FADE = featureLevel('fade');
   const SHUFFLE_EVERY = 6; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
 
@@ -216,7 +217,12 @@
     if (easing) state.ease -= 1;
     const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level, { lastKey: state.lastKey });
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
-    state.round = { expr, answers: evaluate(expr), limit, deadline: performance.now() + limit, active: true };
+    const now = performance.now();
+    // From the fade level on, some prompts vanish after a short look; easier at first, rarer later.
+    const fades = !easing && state.level >= FADE && Math.random() < (state.level === FADE ? 0.6 : 0.35);
+    const fadeAt = fades ? now + 550 + 180 * opCount(expr) : 0;
+    state.round = { expr, answers: evaluate(expr), limit, deadline: now + limit, fadeAt, active: true };
+    els.prompt.classList.remove('faded');
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
     renderPrompt(expr, state.level);
@@ -243,6 +249,7 @@
     if (!round || !round.active) return;
     round.active = false;
     state.lastKey = keyId;
+    els.prompt.classList.remove('faded');
     const pressedNothing = keyId === null;
     const correct = pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
@@ -352,6 +359,7 @@
       const frac = remaining / round.limit;
       els.timer.style.transform = `scaleX(${frac})`;
       els.timer.classList.toggle('low', frac < 0.3);
+      if (round.fadeAt && now >= round.fadeAt) { els.prompt.classList.add('faded'); round.fadeAt = 0; }
       if (remaining <= 0) resolve(null);
     }
     requestAnimationFrame(tick);
@@ -387,7 +395,10 @@
     if (!state.pausedAt) return;
     const pausedFor = performance.now() - state.pausedAt;
     state.startedAt += pausedFor;
-    if (state.round) state.round.deadline += pausedFor;
+    if (state.round) {
+      state.round.deadline += pausedFor;
+      if (state.round.fadeAt) state.round.fadeAt += pausedFor;
+    }
     state.pausedAt = 0;
     els.paused.hidden = true;
     document.body.classList.remove('is-paused');

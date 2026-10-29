@@ -91,6 +91,7 @@ function parse(text) {
     const t = toks[i++];
     if (t === 'not') return not(primary());
     if (t === '(') { const e = orExpr(); i++; return e; }
+    if (t === 'missing') return N.missing([primary(), primary(), primary()]);
     if (t === 'nothing') return NOTHING;
     if (t === 'last') { i++; return N.lastKey(CTX.lastKey); }
     if (t === 'anything') return ANYTHING;
@@ -167,4 +168,21 @@ test('shuffling moves every color and shape to a new arrow, keeping directions',
   }
   N.resetLayout();
   assert.deepEqual(ids(atom('color', 'red')), ['up']);
+});
+
+test('"missing" prompts list three distinct keys and accept only the fourth', () => {
+  const m = N.missing([atom('color', 'red'), atom('shape', 'star'), atom('dir', 'down')]);
+  assert.equal(toText(m), 'missing: red star down');
+  assert.deepEqual(ids(m), ['right']);
+  const next = N.createGenerator(N.makeRng(71));
+  const level = N.LEVELS.findIndex((l) => l.intro.includes('missing'));
+  let seen = 0;
+  for (let i = 0; i < 500; i++) {
+    const e = next(level, CTX);
+    if (e.type !== 'missing') continue;
+    seen++;
+    assert.equal(new Set(e.items.flatMap((item) => [...evaluate(item)])).size, 3, toText(e));
+    assert.equal(evaluate(e).size, 1, toText(e));
+  }
+  assert.ok(seen > 80, `missing prompts seen: ${seen}`);
 });

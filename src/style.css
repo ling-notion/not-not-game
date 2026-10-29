@@ -106,6 +106,7 @@ body.shake .stage { animation: shake 0.3s; }
   gap: 0 0.28em;
 }
 .prompt.pop { animation: pop 0.18s ease-out; }
+.prompt.faded { opacity: 0; transition: opacity 0.25s ease-in; }
 .prompt .op { color: var(--muted); font-weight: 600; }
 .prompt .paren { color: var(--muted); font-weight: 400; }
 .prompt .word { white-space: nowrap; display: inline-flex; align-items: center; }
