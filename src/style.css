@@ -303,7 +303,8 @@ body.is-paused .prompt { filter: blur(14px); }
 }
 
 @media (max-width: 560px) {
-  .hud { padding: 12px 16px; }
+  .hud { padding: 12px 16px 4px; row-gap: 14px; }
+  .timer { width: min(320px, calc(100% - 48px)); height: 6px; }
   .lives { font-size: 22px; }
   .score { font-size: 22px; }
   .best-label { display: none; }
