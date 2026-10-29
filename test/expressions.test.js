@@ -153,3 +153,18 @@ test('"last key" prompts use the previous key and need one to exist', () => {
   }
   assert.ok(seen > 100, `memory prompts seen: ${seen}`);
 });
+
+test('shuffling moves every color and shape to a new arrow, keeping directions', () => {
+  const rng = N.makeRng(61);
+  for (let i = 0; i < 50; i++) {
+    const before = N.KEYS.map((k) => k.color);
+    N.shuffleLayout(rng);
+    N.KEYS.forEach((k, j) => {
+      assert.notEqual(k.color, before[j]);
+      assert.equal(k.dir, ['up', 'right', 'down', 'left'][j]);
+    });
+    assert.equal(new Set(N.KEYS.map((k) => k.shape)).size, 4);
+  }
+  N.resetLayout();
+  assert.deepEqual(ids(atom('color', 'red')), ['up']);
+});

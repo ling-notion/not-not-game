@@ -159,6 +159,7 @@ body.shake .stage { animation: shake 0.3s; }
 .tile .arrow { font-size: 18px; color: var(--muted); line-height: 1; }
 .tile .label { font-size: 12px; color: var(--muted); }
 .tile.pressed { animation: press 0.16s ease-out; }
+.tile.shuffled { animation: shuffle 0.5s ease-out; }
 .tile.hit { border-color: var(--good); background: #1b2a22; }
 .tile.miss { border-color: var(--bad); background: #2c1a1d; }
 .tile.valid { border-color: var(--good); border-style: dashed; }
@@ -243,6 +244,7 @@ body.is-paused .prompt { filter: blur(14px); }
   .card h1 { font-size: 32px; }
 }
 
+@keyframes shuffle { 0% { transform: rotateY(90deg); } 60% { transform: rotateY(-12deg); } 100% { transform: none; } }
 @keyframes pop { from { transform: scale(0.92); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
 @keyframes press { 50% { transform: scale(0.92); } }
 @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }

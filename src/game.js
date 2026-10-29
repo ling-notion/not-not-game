@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -9,6 +9,11 @@
   const HARD_KEY = 'not-not-hard';
   // Hard mode runs the difficulty clock faster and trims every answer window.
   const HARD = { clock: 1.6, time: 0.85 };
+  const LYING_COLORS = featureLevel('lyingColors');
+  const SYMBOLS = featureLevel('symbols');
+  const LYING_SYMBOLS = featureLevel('lyingSymbols');
+  const SHUFFLE = featureLevel('shuffle');
+  const SHUFFLE_EVERY = 6; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
 
   const $ = (sel) => document.querySelector(sel);
@@ -94,18 +99,18 @@
   function renderToken(t, level) {
     if (t.kind !== 'atom') return `<span class="${t.kind}">${t.text}</span>`;
     const { attr, value } = t.atom;
-    const useSymbol = level >= 6 && (attr === 'dir' || attr === 'shape') && Math.random() < 0.5;
+    const useSymbol = level >= SYMBOLS && (attr === 'dir' || attr === 'shape') && Math.random() < 0.5;
     if (useSymbol && attr === 'dir') {
       const key = KEYS.find((k) => k.dir === value);
       return `<span class="atom symbol">${key.glyph}</span>`;
     }
     if (useSymbol && attr === 'shape') {
-      const fill = level >= 7 ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
+      const fill = level >= LYING_SYMBOLS ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
       return `<span class="atom symbol">${shapeSvg(value, fill, 44)}</span>`;
     }
     let color = '#f4f4f8';
-    if (level >= 5 && attr === 'color') color = HEX[pickOther(value)];
-    else if (level >= 5 && Math.random() < 0.4) color = HEX[pickOther()];
+    if (level >= LYING_COLORS && attr === 'color') color = HEX[pickOther(value)];
+    else if (level >= LYING_COLORS && Math.random() < 0.4) color = HEX[pickOther()];
     return `<span class="atom" style="color:${color}">${t.text}</span>`;
   }
 
@@ -134,6 +139,7 @@
     bestStreak: 0,
     hardestSolved: null,
     nemesis: null,
+    sinceShuffle: 0, // rounds played since the pad last shuffled
     lastKey: null, // key pressed in the previous round, for "last key" prompts
     ease: 0, // rounds left of lighter prompts after a miss
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
@@ -169,8 +175,10 @@
 
   function startGame() {
     clearTimers();
+    resetLayout();
+    renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -195,6 +203,14 @@
       showBanner(LEVELS[level].intro);
       window.Sound.levelUp();
     }
+    // Shuffle on reaching the level and every few rounds after, with a beat to re-read the pad.
+    if (state.level >= SHUFFLE && (state.sinceShuffle === 0 || state.sinceShuffle >= SHUFFLE_EVERY)) {
+      state.sinceShuffle = 1;
+      shufflePad();
+      later(nextRound, 1100);
+      return;
+    }
+    if (state.sinceShuffle > 0) state.sinceShuffle += 1;
     // After a miss, two lighter rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
@@ -205,6 +221,20 @@
     showFeedback('', '');
     renderPrompt(expr, state.level);
     updateHud();
+  }
+
+  function shufflePad() {
+    shuffleLayout();
+    renderLegend();
+    state.round = null;
+    els.prompt.textContent = 'Shuffle!';
+    showFeedback('Check the keys', '');
+    Object.values(els.tiles).forEach((t) => {
+      t.classList.remove('valid', 'hit', 'miss', 'shuffled');
+      void t.offsetWidth;
+      t.classList.add('shuffled');
+    });
+    window.Sound.shuffle();
   }
 
   // keyId is null when the timer ran out without a press.

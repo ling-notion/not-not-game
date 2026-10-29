@@ -64,6 +64,10 @@
       [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
         tone(f, { start: i * 0.07, dur: 0.18, type: 'triangle', vol: 0.4 }));
     },
+    shuffle() {
+      tone(300, { dur: 0.22, type: 'triangle', vol: 0.3, slide: 900 });
+      tone(450, { start: 0.08, dur: 0.22, type: 'sine', vol: 0.2, slide: 1200 });
+    },
     gameOver() {
       [392, 349.23, 311.13, 261.63].forEach((f, i) =>
         tone(f, { start: i * 0.16, dur: 0.3, type: 'triangle', vol: 0.4 }));

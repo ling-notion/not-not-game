@@ -76,11 +76,36 @@
     { at: 13, intro: 'New: "nothing" means don\'t press' },
     { at: 27, intro: 'New: "or"' },
     { at: 40, intro: 'New: "last key" means the key you just pressed' },
-    { at: 52, intro: 'New: words lie about their color' },
-    { at: 65, intro: 'New: symbols instead of words' },
-    { at: 82, intro: 'Chaos mode' },
-    { at: 110, intro: 'Endless: it only gets faster' },
+    { at: 52, intro: 'New: the colors and shapes swap keys', feature: 'shuffle' },
+    { at: 64, intro: 'New: words lie about their color', feature: 'lyingColors' },
+    { at: 77, intro: 'New: symbols instead of words', feature: 'symbols' },
+    { at: 92, intro: 'Chaos mode', feature: 'lyingSymbols' },
+    { at: 120, intro: 'Endless: it only gets faster' },
   ];
+
+  // First level index with a feature flag, e.g. featureLevel('shuffle').
+  const featureLevel = (name) => LEVELS.findIndex((l) => l.feature === name);
+
+  // Colors and shapes can move between arrows; directions always stay with their arrow key.
+  const HOME_LAYOUT = KEYS.map((k) => ({ color: k.color, shape: k.shape }));
+
+  function resetLayout() {
+    KEYS.forEach((k, i) => Object.assign(k, HOME_LAYOUT[i]));
+  }
+
+  // Moves every color+shape pair to a different arrow than it has now.
+  function shuffleLayout(rng = Math.random) {
+    const current = KEYS.map((k) => ({ color: k.color, shape: k.shape }));
+    let order;
+    do {
+      order = [0, 1, 2, 3];
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+    } while (order.some((from, to) => from === to));
+    KEYS.forEach((k, i) => Object.assign(k, current[order[i]]));
+  }
 
   function levelFor(seconds) {
     let level = 0;
@@ -91,7 +116,7 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
     // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1850, 1800, 1750, 1700, 1650][level];
+    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1800, 1750, 1700, 1650][level];
     const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
     return Math.max(1150, base - decay) + opCount(expr) * 260;
   }
@@ -170,6 +195,8 @@
         () => or(memory(), randomAtom()),
         () => not(or(memory(), randomAtom())),
       ],
+      // Shuffle level: short prompts, since re-reading the pad is the challenge.
+      [() => randomAtom(), () => not(randomAtom()), () => or(...twoAtoms())],
       [
         () => or(not(randomAtom()), not(randomAtom())),
         () => notN(or(...twoAtoms()), 2),
@@ -218,7 +245,7 @@
   }
 
   const api = {
-    KEYS, ALL_IDS, COLORS, LEVELS,
+    KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
     atom, not, or, and, lastKey, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };

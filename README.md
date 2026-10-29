@@ -42,10 +42,11 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 13s | `nothing`, `anything`, stacked negations |
 | 27s | `or` |
 | 40s | `last key`: the key you pressed in the previous round |
-| 52s | Words are drawn in misleading colors |
-| 65s | Arrow and shape symbols replace some words |
-| 82s | Nested expressions and misleading symbol colors |
-| 110s | Endless: same rules, the timer keeps shrinking |
+| 52s | Shuffle: every 6 rounds the colors and shapes move to different arrows |
+| 64s | Words are drawn in misleading colors |
+| 77s | Arrow and shape symbols replace some words |
+| 92s | Nested expressions and misleading symbol colors |
+| 120s | Endless: same rules, the timer keeps shrinking |
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 
@@ -58,3 +59,5 @@ npm test
 - `src/expressions.js`: building, evaluating, rendering, and generating expressions (unit tested)
 - `src/sound.js`: synthesized sound effects with the Web Audio API
 - `src/game.js`: game loop, input, and rendering
+
+When you change anything in `src/`, bump the `?v=` number on the script and stylesheet tags in `index.html`. Otherwise browsers can mix a new page with old cached files.
