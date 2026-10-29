@@ -193,6 +193,8 @@ body.shake .stage { animation: shake 0.3s; }
   flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel-2); color: var(--accent); font-size: 13px; font-weight: 700;
 }
+.pause-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pause-actions .mute { padding: 10px 14px; font-size: 14px; }
 .skip-practice { display: block; margin: 10px auto 0; }
 .skip-practice[hidden] { display: none; }
 .tile.glow { border-color: var(--good); animation: glow 1.2s ease-in-out infinite; }

@@ -8,6 +8,8 @@
   const BEST_KEY = 'not-not-best';
   const HARD_KEY = 'not-not-hard';
   const PRACTICED_KEY = 'not-not-practiced';
+  // Normal mode's difficulty clock runs a little fast, since the tutorial already covers the basics.
+  const NORMAL_CLOCK = 1.2;
   // A first normal-mode game opens with these untimed-feeling rounds: the answer glows and misses cost nothing.
   const PRACTICE = [
     { expr: atom('color', 'green'), hint: 'Press the green key' },
@@ -45,6 +47,8 @@
     hardToggles: [...document.querySelectorAll('.hard-toggle:not(#help-toggle)')],
     restart: $('#restart'),
     skipPractice: $('#skip-practice'),
+    titleHint: $('#title-hint'),
+    replayTutorial: $('#replay-tutorial'),
     pauseNote: $('#pause-note'),
     share: $('#share'),
     sharePreview: $('#share-preview'),
@@ -187,14 +191,14 @@
   // Level number shown to the player: hard mode counts from 1 at its later starting level.
   const levelOffset = () => (state.runHard ? levelFor(HARD.start) : 0);
   const shownLevel = (level = state.level) => level + 1 - levelOffset();
-  const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed());
+  const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed() * NORMAL_CLOCK);
 
   function updateHud() {
     els.lives.innerHTML = Array.from({ length: START_LIVES }, (_, i) =>
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
     els.streak.textContent = state.streak >= 3 ? `${state.streak} streak` : '';
-    els.level.textContent = state.practice >= 0 ? `Practice ${state.practice + 1} of ${PRACTICE.length}` : `Level ${shownLevel()}`;
+    els.level.textContent = state.practice >= 0 ? `Tutorial ${state.practice + 1} of ${PRACTICE.length}` : `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
     els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
@@ -214,14 +218,13 @@
     els.feedback.className = `feedback ${kind}`;
   }
 
-  function startGame() {
+  // The first game is the tutorial; passing tutorial replays it on demand.
+  function startGame({ tutorial = false } = {}) {
     clearTimers();
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    let practiced = false;
-    try { practiced = localStorage.getItem(PRACTICED_KEY) === '1'; } catch (_) { /* storage unavailable */ }
-    Object.assign(state, { practice: hard || practiced ? -1 : 0, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { practice: tutorial || !practiced() ? 0 : -1, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -230,9 +233,10 @@
     document.body.classList.add('playing');
     showFeedback('', '');
     updateHud();
-    showBanner(hard ? 'Hard mode: all the basics are already in'
-      : state.practice >= 0 ? 'Practice: 4 quick rounds, no lives lost' : LEVELS[0].intro);
+    showBanner(state.practice >= 0 ? 'Tutorial: 4 quick rounds, no lives lost'
+      : hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
     els.skipPractice.hidden = state.practice < 0;
+    renderTitleHint();
     els.prompt.textContent = 'Get ready…';
     later(nextRound, 1100);
   }
@@ -301,19 +305,29 @@
     finishPractice();
   }
 
+  // Finishing or skipping the tutorial returns to the start card; the player starts the real game.
   function finishPractice() {
     state.practice = -1;
     state.round = null;
+    state.phase = 'title';
     try { localStorage.setItem(PRACTICED_KEY, '1'); } catch (_) { /* storage unavailable */ }
     clearTimers();
     Object.values(els.tiles).forEach((t) => t.classList.remove('glow', 'hit', 'miss'));
     els.skipPractice.hidden = true;
-    updateHud();
-    showBanner("You're ready. Lives count now");
-    els.prompt.textContent = 'Get ready…';
+    document.body.classList.remove('playing');
     showFeedback('', '');
-    // The real game's clock starts when its first round does.
-    later(() => { state.startedAt = performance.now(); state.lastKey = null; nextRound(); }, 1400);
+    els.prompt.textContent = '';
+    renderTitleHint(true);
+    els.title.hidden = false;
+    updateHud();
+  }
+
+  const practiced = () => {
+    try { return localStorage.getItem(PRACTICED_KEY) === '1'; } catch (_) { return false; }
+  };
+  function renderTitleHint(justFinished = false) {
+    els.titleHint.textContent = justFinished ? "Tutorial done. Press any arrow key to start the real game"
+      : practiced() ? 'Press any arrow key or tap to start' : 'Press any arrow key or tap to start the tutorial';
   }
 
   function shufflePad() {
@@ -539,6 +553,8 @@
   els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
   els.skipPractice.addEventListener('pointerdown', (e) => e.stopPropagation());
   els.skipPractice.addEventListener('click', () => { els.skipPractice.blur(); if (state.practice >= 0) finishPractice(); });
+  els.replayTutorial.addEventListener('pointerdown', (e) => e.stopPropagation());
+  els.replayTutorial.addEventListener('click', () => { els.replayTutorial.blur(); startGame({ tutorial: true }); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 
@@ -653,6 +669,7 @@
 
   renderLegend();
   renderTitleCard();
+  renderTitleHint();
   renderHard();
   renderDebug(false);
   // The ?v= value (month.day.year.build) on this script's URL doubles as the visible version, to spot stale caches.

@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.28.26.5">
+  <link rel="stylesheet" href="src/style.css?v=10.28.26.6">
 </head>
 <body>
   <header class="hud">
@@ -34,7 +34,7 @@
       <div id="prompt" class="prompt" aria-live="assertive"></div>
       <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
-      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip practice <kbd>S</kbd></button>
+      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip tutorial <kbd>S</kbd></button>
     </div>
 
     <div class="pad" aria-label="Arrow keys">
@@ -58,7 +58,7 @@
         <span class="switch" aria-hidden="true"></span>
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
       </button>
-      <p class="hint">Press any arrow key or tap to start</p>
+      <p id="title-hint" class="hint">Press any arrow key or tap to start</p>
       <p class="small keys-hint"><kbd>Esc</kbd> pause <kbd>R</kbd> restart <span class="dot">·</span> tap tiles on a phone</p>
       <p class="small version">Version <span id="version"></span></p>
     </div>
@@ -87,9 +87,14 @@
         <span class="switch" aria-hidden="true"></span>
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
       </button>
+      <ol class="steps pause-steps">
+        <li><span class="step-n">1</span>Read the rule</li>
+        <li><span class="step-n">2</span>Press any key it allows</li>
+        <li><span class="step-n">3</span>Before the bar runs out</li>
+      </ol>
       <button id="help-toggle" class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
-        <span><b>Show instructions</b></span>
+        <span><b>Show examples</b></span>
       </button>
       <div id="pause-help" class="pause-help" hidden>
         <ul class="examples">
@@ -103,13 +108,16 @@
           </ul>
       </div>
       <p id="pause-note" class="small pause-note"></p>
-      <button id="restart" class="share" type="button">Restart (R)</button>
+      <div class="pause-actions">
+        <button id="restart" class="share" type="button">Restart (R)</button>
+        <button id="replay-tutorial" class="mute" type="button">Replay tutorial</button>
+      </div>
       <p class="hint">Press Esc or tap to resume</p>
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.28.26.5"></script>
-  <script src="src/sound.js?v=10.28.26.5"></script>
-  <script src="src/game.js?v=10.28.26.5"></script>
+  <script src="src/expressions.js?v=10.28.26.6"></script>
+  <script src="src/sound.js?v=10.28.26.6"></script>
+  <script src="src/game.js?v=10.28.26.6"></script>
 </body>
 </html>
