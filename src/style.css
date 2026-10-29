@@ -35,8 +35,6 @@ body.shake .stage { animation: shake 0.3s; }
   justify-content: space-between;
   align-items: center;
   position: relative;
-  /* Above the overlays so settings stay reachable on the title and game-over screens. */
-  z-index: 2;
   padding: 16px 24px;
   padding-top: max(16px, env(safe-area-inset-top));
 }
