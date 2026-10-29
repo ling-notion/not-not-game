@@ -34,7 +34,7 @@
     best: $('#best-score'),
     mute: $('#mute'),
     hardBadge: $('#hard-badge'),
-    hardToggles: [...document.querySelectorAll('.hard-toggle')],
+    hardToggles: [...document.querySelectorAll('.hard-toggle:not(#help-toggle)')],
     restart: $('#restart'),
     pauseNote: $('#pause-note'),
     share: $('#share'),
@@ -86,6 +86,8 @@
         group.split('+').map((id) => mini(KEYS.find((k) => k.id === id), 18)).join('<span class="plus">+</span>')
       ).join('<span class="or">/</span>');
     });
+    // The pause card reuses the same legend and examples behind a toggle.
+    $('#pause-help').innerHTML = $('.legend').outerHTML + $('.examples').outerHTML;
   }
 
   const pickOther = (exclude) => {
@@ -497,11 +499,30 @@
     t.addEventListener('click', () => { toggleHard(); t.blur(); });
   });
 
-  els.mute.addEventListener('click', () => {
-    const muted = window.Sound.toggleMute();
-    els.mute.textContent = muted ? 'Sound: off' : 'Sound: on';
+  const SPEAKER = '<path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>';
+  const SOUND_ICONS = {
+    on: `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${SPEAKER}<path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    off: `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${SPEAKER}<path d="M16.5 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  };
+  function renderMute(muted) {
+    els.mute.innerHTML = muted ? SOUND_ICONS.off : SOUND_ICONS.on;
     els.mute.setAttribute('aria-pressed', String(muted));
+    els.mute.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
+  }
+  renderMute(false);
+  els.mute.addEventListener('click', () => {
+    renderMute(window.Sound.toggleMute());
     els.mute.blur();
+  });
+
+  const helpToggle = $('#help-toggle');
+  helpToggle.addEventListener('pointerdown', (e) => e.stopPropagation());
+  helpToggle.addEventListener('click', () => {
+    const on = helpToggle.getAttribute('aria-checked') !== 'true';
+    helpToggle.setAttribute('aria-checked', String(on));
+    helpToggle.classList.toggle('on', on);
+    $('#pause-help').hidden = !on;
+    helpToggle.blur();
   });
 
   // Debug panel: the current prompt's difficulty breakdown against the level's cap.
@@ -563,9 +584,9 @@
   renderTitleCard();
   renderHard();
   renderDebug(false);
-  // The ?v= number on this script's URL doubles as the visible version, to spot stale caches.
+  // The ?v= value (month.day.year.build) on this script's URL doubles as the visible version, to spot stale caches.
   const ownSrc = [...document.scripts].map((el) => el.src).find((src) => src.includes('game.js')) || '';
-  $('#version').textContent = (ownSrc.match(/[?&]v=(\d+)/) || [, '?'])[1];
+  $('#version').textContent = (ownSrc.match(/[?&]v=([^&]+)/) || [, '?'])[1];
   updateHud();
   els.best.textContent = best;
   requestAnimationFrame(tick);

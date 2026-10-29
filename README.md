@@ -70,4 +70,4 @@ npm test
 - `src/sound.js`: synthesized sound effects with the Web Audio API
 - `src/game.js`: game loop, input, and rendering
 
-When you change anything in `src/`, bump the `?v=` number on the script and stylesheet tags in `index.html`. Otherwise browsers can mix a new page with old cached files.
+When you change anything in `src/`, bump the `?v=` value on the script and stylesheet tags in `index.html`. It's `month.day.year.build`, like `10.28.26.1`; raise the last number for each change that day and reset it to 1 on a new day. Otherwise browsers can mix a new page with old cached files.
