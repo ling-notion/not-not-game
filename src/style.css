@@ -50,16 +50,17 @@ body.shake .stage { animation: shake 0.3s; }
   transition: color 0.2s, border-color 0.2s, background-color 0.2s;
 }
 .streak.bump { animation: streak-bump 0.25s ease-out; }
-/* 10+: bronze trim. 25+: silver with a shine sweep. 50+: gold, glowing. 100+: shifting rainbow. */
+/* 10: bronze trim. 20: silver with a shine sweep. 30: gold. 40: glowing gold. 50+: shifting rainbow. */
 .streak.tier-1 { color: #ffb36b; border-color: #a8693a; background: rgba(255, 179, 107, 0.08); }
 .streak.tier-2 { color: #eef1ff; border-color: #b9c2e8; background: rgba(185, 194, 232, 0.12); }
-.streak.tier-3 { color: #ffe27a; border-color: #ffd23f; background: rgba(255, 210, 63, 0.14); animation: streak-glow 1.4s ease-in-out infinite; }
-.streak.tier-4 {
+.streak.tier-3 { color: #ffe27a; border-color: #ffd23f; background: rgba(255, 210, 63, 0.14); }
+.streak.tier-4 { color: #ffe27a; border-color: #ffd23f; background: rgba(255, 210, 63, 0.18); animation: streak-glow 1.4s ease-in-out infinite; }
+.streak.tier-5 {
   color: #fff; border-color: transparent;
   background: linear-gradient(#1c1c28, #1c1c28) padding-box, linear-gradient(90deg, #ff5a5f, #ffd23f, #3ddc84, #4da3ff, #b18cff, #ff5a5f) border-box;
   background-size: 100% 100%, 300% 100%; animation: streak-rainbow 2.4s linear infinite, streak-glow 1.4s ease-in-out infinite;
 }
-.streak.tier-2::after, .streak.tier-3::after, .streak.tier-4::after {
+.streak.tier-2::after, .streak.tier-3::after, .streak.tier-4::after, .streak.tier-5::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%);
   transform: translateX(-120%); animation: streak-shine 2.2s ease-in-out infinite;
@@ -70,8 +71,8 @@ body.shake .stage { animation: shake 0.3s; }
   font-size: clamp(15px, 2.6vw, 20px); font-weight: 700; letter-spacing: 0; opacity: 0; color: #ffb36b;
 }
 .combo.tier-2 { color: #eef1ff; }
-.combo.tier-3 { color: #ffe27a; }
-.combo.tier-4 {
+.combo.tier-3, .combo.tier-4 { color: #ffe27a; }
+.combo.tier-5 {
   background: linear-gradient(90deg, #ff5a5f, #ffd23f, #3ddc84, #4da3ff, #b18cff);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }

@@ -225,15 +225,16 @@
     els.hudBest.textContent = best;
   }
 
-  // Streak styling steps up at each tier; reaching a milestone count also plays a fanfare.
-  const STREAK_TIERS = [10, 25, 50, 100];
+  // Streak styling steps up every 10 and tops out at 50; milestones keep coming every 50 after that.
+  const STREAK_TIERS = [10, 20, 30, 40, 50];
+  const MAX_TIER = STREAK_TIERS.length;
   const streakTier = (n) => STREAK_TIERS.filter((t) => n >= t).length;
-  const isMilestone = (n) => STREAK_TIERS.includes(n) || (n > 100 && n % 50 === 0);
+  const isMilestone = (n) => STREAK_TIERS.includes(n) || (n > 50 && n % 50 === 0);
   function renderStreak() {
     const n = state.streak;
     const tier = streakTier(n);
-    els.streak.textContent = n >= 3 ? `${tier >= 3 ? '🔥 ' : ''}${n} streak` : '';
-    [1, 2, 3, 4].forEach((t) => els.streak.classList.toggle(`tier-${t}`, t === tier));
+    els.streak.textContent = n >= 3 ? `${tier >= 4 ? '🔥 ' : ''}${n} streak` : '';
+    STREAK_TIERS.forEach((_, i) => els.streak.classList.toggle(`tier-${i + 1}`, i + 1 === tier));
   }
   function bumpStreak() {
     els.streak.classList.remove('bump');
@@ -241,11 +242,11 @@
     els.streak.classList.add('bump');
   }
   function celebrateStreak(n) {
-    const tier = Math.min(4, Math.max(1, streakTier(n)));
+    const tier = Math.min(MAX_TIER, Math.max(1, streakTier(n)));
     window.Sound.milestone(tier);
     els.streak.classList.add('milestone');
     later(() => els.streak.classList.remove('milestone'), 900);
-    els.combo.textContent = n >= 100 ? `${n} streak! Unstoppable` : n >= 50 ? `${n} streak! On fire` : `${n} streak!`;
+    els.combo.textContent = n >= 50 ? `${n} streak! Unstoppable` : n >= 40 ? `${n} streak! On fire` : `${n} streak!`;
     els.combo.className = `combo tier-${tier}`;
     void els.combo.offsetWidth;
     els.combo.classList.add('show');
@@ -346,8 +347,7 @@
   }
 
   function renderTitleHint() {
-    const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    els.titleHint.textContent = touch ? 'Tap anywhere to start' : 'Press any arrow key to start';
+    els.titleHint.textContent = isTouch() ? 'Tap to start' : 'Press any arrow key to start';
   }
 
   function shufflePad() {
@@ -630,8 +630,10 @@
   Object.entries(els.tiles).forEach(([id, tile]) => {
     tile.addEventListener('pointerdown', (e) => { e.preventDefault(); handleInput(id); });
   });
+  // Touch screens start by tapping the card; with a keyboard, only an arrow key starts.
+  const isTouch = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   [els.title, els.over].forEach((overlay) => {
-    overlay.addEventListener('pointerdown', (e) => { e.preventDefault(); handleInput('up'); });
+    overlay.addEventListener('pointerdown', (e) => { if (!isTouch()) return; e.preventDefault(); handleInput('up'); });
   });
   // Keep share interactions from also counting as a tap-to-restart on the overlay.
   [els.share, els.sharePreview].forEach((el) => el.addEventListener('pointerdown', (e) => e.stopPropagation()));
