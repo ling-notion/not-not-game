@@ -313,6 +313,7 @@
     later(nextRound, 1100);
   }
 
+  const QUIET_LEVELS = ['chaos', 'endless'];
   function nextRound() {
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
@@ -323,9 +324,10 @@
     const level = levelFor(seconds);
     if (level > state.level) {
       state.level = level;
-      window.Sound.levelUp();
-      // Level-wide changes get their card now; prompt rules get theirs when a prompt first uses them.
       const id = LEVELS[level].id;
+      // Chaos and endless only ramp things up quietly, so they get no chime.
+      if (!QUIET_LEVELS.includes(id)) window.Sound.levelUp();
+      // Level-wide changes get their card now; prompt rules get theirs when a prompt first uses them.
       const seen = loadSeen();
       if (!state.runNightmare && LEVEL_CARDS.includes(id) && !seen.has(id)) { showIntros([id]); state.pendingRound = true; return; }
     }

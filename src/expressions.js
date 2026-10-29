@@ -130,8 +130,8 @@
     { id: 'lyingColors', at: 64, intro: 'New: words lie about their color' },
     { id: 'memory', at: 78, intro: 'New: "last key" means the key you just pressed' },
     { id: 'shuffle', at: 92, intro: 'New: the colors and shapes swap keys' },
-    { id: 'chaos', at: 108, intro: 'Chaos mode' },
-    { id: 'missing', at: 128, intro: 'New: press the one that\'s missing' },
+    { id: 'missing', at: 108, intro: 'New: press the one that\'s missing' },
+    { id: 'chaos', at: 128, intro: 'Chaos mode' },
     { id: 'endless', at: 154, intro: 'Endless: it only gets faster' },
   ];
 
@@ -430,7 +430,7 @@
       // Groups take a bigger share as prompts get harder in the late game.
       if (has('chaos') && has('or')) shapes.push(['group', cap >= 9 ? 8 : cap >= 7 ? 5 : cap >= 5 ? 2 : 0.5]);
       if (has('and')) shapes.push(['and', 1.5]);
-      if (has('missing')) shapes.push(['missing', has('endless') && cap >= 11 ? 0.35 : has('endless') && cap >= 9 ? 0.6 : 1.2]);
+      if (has('missing')) shapes.push(['missing', cap >= 11 ? 0.7 : cap >= 9 ? 1.3 : 3]);
       if (has('nothing')) shapes.push(['nothing', 0.8]);
       const shape = weighted(shapes);
       if (shape === 'and') return andPrompt(has);
