@@ -108,6 +108,20 @@
     return mentionsNothing(expr.a) || mentionsNothing(expr.b);
   }
 
+  const isSubset = (a, b) => [...a].every((id) => b.has(id));
+
+  // An "or" is pointless when one side adds nothing ("yellow or star") or together they cover
+  // every key ("not down or down"); such prompts read as tricks rather than real statements.
+  function hasPointlessOr(expr) {
+    if (expr.type === 'atom') return false;
+    if (expr.type === 'not') return hasPointlessOr(expr.e);
+    if (hasPointlessOr(expr.a) || hasPointlessOr(expr.b)) return true;
+    if (expr.type !== 'or') return false;
+    const a = evaluate(expr.a);
+    const b = evaluate(expr.b);
+    return isSubset(a, b) || isSubset(b, a) || new Set([...a, ...b]).size === KEYS.length;
+  }
+
   function createGenerator(rng = Math.random) {
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
     const randomAtom = (attr = pick(ATTRS)) => atom(attr, pick(KEYS)[attr]);
@@ -157,7 +171,7 @@
         const answers = evaluate(expr);
         // "Press nothing" only comes from prompts that say nothing outright, never from a contradiction.
         const accidentalNothing = answers.size === 0 && !mentionsNothing(expr);
-        if (text === last || accidentalNothing) continue;
+        if (text === last || accidentalNothing || hasPointlessOr(expr)) continue;
         last = text;
         return expr;
       }
@@ -168,7 +182,7 @@
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS,
     atom, not, or, and, ANYTHING, NOTHING,
-    evaluate, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
+    evaluate, hasPointlessOr, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.NotNot = api;

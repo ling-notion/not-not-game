@@ -110,3 +110,17 @@ test('prompt text means exactly what the game grades', () => {
     }
   }
 });
+
+test('"or" prompts are never redundant or always-true', () => {
+  const down = atom('dir', 'down');
+  assert.ok(N.hasPointlessOr(or(not(down), down)));
+  assert.ok(N.hasPointlessOr(or(atom('color', 'yellow'), atom('shape', 'star'))));
+  assert.ok(!N.hasPointlessOr(or(atom('color', 'red'), down)));
+  const next = N.createGenerator(N.makeRng(31));
+  for (let level = 0; level < N.LEVELS.length; level++) {
+    for (let i = 0; i < 1000; i++) {
+      const e = next(level);
+      assert.ok(!N.hasPointlessOr(e), toText(e));
+    }
+  }
+});
