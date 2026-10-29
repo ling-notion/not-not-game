@@ -741,14 +741,15 @@
     });
   }
 
-  // Toggled from the pause menu; a change applies on restart, so a run's score reflects one setting.
+  // Toggled from the pause menu or game-over card; a change applies on the next game, so a run's score reflects one setting.
   function toggleHard() {
     if (!hardUnlocked) return;
     if (state.phase === 'playing' && !state.pausedAt) return;
     hard = !hard;
     try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }
     best = loadBest();
-    els.best.textContent = best;
+    // The game-over card keeps showing the best for the mode just played.
+    if (state.phase !== 'over') els.best.textContent = best;
     renderHard();
     updateHud();
     els.pauseNote.textContent = state.phase === 'playing' && hard !== state.runHard ? 'Applies when you restart' : '';
