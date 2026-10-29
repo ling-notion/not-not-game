@@ -30,7 +30,6 @@
     symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
     or: { title: '"or" gives you a choice', body: 'Either key works.', expr: or(c('red'), c('blue')) },
     and: { title: '"and" means press them all', body: 'Press every key named, in any order.', expr: all([c('red'), c('blue')]) },
-    andChoice: { title: 'Each part needs its own key', body: 'Here: press red, plus one other key that isn\'t blue.', expr: all([c('red'), not(c('blue'))]) },
     lyingColors: { title: 'Colors can lie', body: 'Go by what the text says, not the color it is written in. Here the word says green, so press green.', expr: c('green'), lying: true },
     memory: { title: '"last key" is the key you just pressed', body: 'Press the same key you answered with last round.', icon: '↺' },
     shuffle: { title: 'The keys shuffle', body: 'Every so often the colors and shapes swap keys. Check the pad before answering.', icon: '🔀' },
@@ -595,13 +594,12 @@
     try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (_) { /* storage unavailable */ }
   }
   // Intro ids for the rules a prompt actually shows, in teaching order.
-  const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'andChoice', 'lyingColors', 'memory', 'missing'];
+  const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
   function rulesIn(expr) {
     const found = mechanicsOf(expr);
     const atoms = toTokens(expr).filter((t) => t.atom).map((t) => t.atom.attr);
     found.delete('nothing');
     if (hasStackedNot(expr)) found.add('stacked');
-    if (needsAll(expr) && andSlots(expr).some((slot) => slot.size > 1)) found.add('andChoice');
     if (atoms.includes('none')) found.add('nothing');
     if (atoms.includes('any')) found.add('anything');
     const style = expr.style || {};
