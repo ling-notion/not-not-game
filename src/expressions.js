@@ -373,7 +373,7 @@
       };
       const side = () => {
         const r = rng();
-        if (depth < maxDepth && r < 0.4) return groupPrompt(has, cap, depth + 1, used);
+        if (depth < maxDepth && r < (cap >= 11 ? 0.6 : 0.4)) return groupPrompt(has, cap, depth + 1, used);
         if (recentKey && has('memory') && !used.has('last key') && r < 0.48) { used.add('last key'); return lastKey(recentKey); }
         return r < 0.8 ? freshAtom() : not(freshAtom());
       };
@@ -385,12 +385,21 @@
       // Groups take a bigger share as prompts get harder in the late game.
       if (has('chaos') && has('or')) shapes.push(['group', cap >= 9 ? 8 : cap >= 7 ? 5 : cap >= 5 ? 2 : 0.5]);
       if (has('and')) shapes.push(['and', 1.5]);
-      if (has('missing')) shapes.push(['missing', has('endless') && cap >= 9 ? 0.6 : 1.2]);
+      if (has('missing')) shapes.push(['missing', has('endless') && cap >= 11 ? 0.35 : has('endless') && cap >= 9 ? 0.6 : 1.2]);
       if (has('nothing')) shapes.push(['nothing', 0.8]);
       const shape = weighted(shapes);
       if (shape === 'and') return andPrompt(has);
       if (shape === 'missing') return missingPrompt(has);
-      if (shape === 'group') return groupPrompt(has, cap);
+      if (shape === 'group') {
+        // Group scores vary widely, so try a few and keep the one closest to the aim (cap - 1).
+        let best = null;
+        for (let i = 0; i < 12; i++) {
+          const g = groupPrompt(has, cap);
+          if (!best || Math.abs(difficulty(g) - (cap - 1)) < Math.abs(difficulty(best) - (cap - 1))) best = g;
+          if (Math.abs(difficulty(best) - (cap - 1)) <= 0.3) break;
+        }
+        return best;
+      }
       if (shape === 'nothing') return notN(pick([NOTHING, ANYTHING]), pick([0, 0, 1, 2]));
       return build(has, cap);
     }
