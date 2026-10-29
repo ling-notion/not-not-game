@@ -368,21 +368,27 @@
     let recentFormats = [];
     let recentAnswers = []; // answer sets of the last two prompts, e.g. "down"
     let lastWords = new Set(); // words used by the previous prompt
+    let lastScore = null; // difficulty of the previous prompt, so no prompt jumps far above it
     const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
     return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0 } = {}) {
       recentKey = previousKey;
       const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
       const has = (id) => unlocked.has(id);
       const target = Math.max(0.5, targetDifficulty(seconds) + skill);
-      // Each prompt aims at its own point near the target: mostly close, some breathers, a few surprises.
-      const roll = rng();
-      const aim = Math.max(0.5, roll < 0.15 ? target - 1.5 : roll < 0.88 ? target - 0.6 + rng() * 1.1 : target + 1);
+      // Each prompt aims at its own point near the target: mostly just under it, with some breathers.
+      const aim = Math.max(0.5, rng() < 0.15 ? target - 1.2 : target - 0.5 + rng() * 0.8);
+      // Hard cap: a little above the target, and at most one step above the previous prompt.
+      // A breather or fallback lowers it only briefly, since the floor tracks the target.
+      const cap = Math.min(target + 0.7, lastScore == null ? Infinity : Math.max(lastScore, target - 1, 0.5) + 1.2);
+      // Mechanics above the cap wait until the curve catches up, instead of spiking in early.
+      const affordable = (m) => introCost(m) <= cap;
       // A mechanic unlocked moments ago is shown often but on its own, in a simple prompt.
       const { id: latest, at } = LEVELS[level];
-      const isNew = seconds - at < INTRO_SECONDS && (LOGIC_MECHANICS.includes(latest) || STYLE_MECHANICS.includes(latest));
+      const isNew = seconds - at < INTRO_SECONDS && (LOGIC_MECHANICS.includes(latest) || STYLE_MECHANICS.includes(latest)) && affordable(latest);
       // Occasionally refresh an earlier mechanic in a simple standalone prompt, so heavy ones
       // (like "missing") keep appearing before the curve is high enough to include them.
-      const refreshable = LOGIC_MECHANICS.filter((m) => has(m));
+      // Only rules whose simplest prompt sits near the target, so a refresher never reads as a sudden dip.
+      const refreshable = LOGIC_MECHANICS.filter((m) => has(m) && affordable(m) && introCost(m) >= target - 2);
       // Heavier mechanics are refreshed more often, since the curve rarely reaches them on its own.
       const refresh = !isNew && refreshable.length && rng() < 0.07 ? weighted(refreshable.map((m) => [m, introCost(m)])) : null;
       const newest = refresh || latest;
@@ -401,15 +407,15 @@
         }
         expr.style = style;
         const score = difficulty(expr);
-        // Never more than a step above the target; if attempts keep failing, accept easier prompts.
-        if (score > Math.max(target + 1.2, introduce ? introCost(newest) + 0.5 : 0)) continue;
+        // Never above the cap; if attempts keep failing, accept easier prompts.
+        if (score > cap + (introduce ? 0.3 : 0)) continue;
         if (introduce) {
           const logic = LOGIC_MECHANICS.includes(newest);
           if (logic && !mechanicsOf(expr).has(newest)) continue;
           if (!logic && !style[newest]) continue;
           // Introductions keep everything else minimal: the new mechanic plus at most a little.
           if (score > introCost(newest) + 1) continue;
-        } else if (score > aim + 0.5 || score < aim - 0.6 - easier) continue;
+        } else if (score > aim + 0.4 || score < aim - 0.6 - easier) continue;
         expr.aim = introduce ? null : aim;
         expr.target = target;
 
@@ -430,6 +436,7 @@
         recentFormats = [format, ...recentFormats].slice(0, RECENT_FORMATS);
         recentAnswers = [answerKey, ...recentAnswers].slice(0, 2);
         lastWords = words;
+        lastScore = score;
         return expr;
       }
       last = '';
@@ -444,6 +451,7 @@
       fallback.style = {};
       fallback.target = target;
       fallback.aim = aim;
+      lastScore = difficulty(fallback);
       return fallback;
     };
   }

@@ -51,10 +51,10 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 154s | Endless: same rules, the timer keeps shrinking |
 
 Levels only decide which mechanics exist. How hard prompts are follows a smooth curve over time (`targetDifficulty` in `src/expressions.js`). Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS`). Each prompt then aims at its own point near the curve:
-- most land close to the curve
-- about 15% are breathers well below it
-- about 12% are surprises a step above it
-- nothing is ever more than about one step above it
+- most land just under the curve
+- about 15% are breathers a little below it
+- nothing goes more than 0.7 above the curve, or more than about one step above the previous prompt
+- heavy mechanics (like `missing`) wait until the curve is close to their cost, so they never spike in early
 
 A mechanic unlocked in the last 14 seconds is featured in simple prompts on its own. A skill rating also nudges the curve: it rises slowly with correct answers and drops after a miss, so struggling players get breathing room and strong players get pushed. The answer timer also shrinks smoothly, and harder prompts get extra reading time. The first time a player reaches each mechanic, the game pauses on a card explaining it (remembered in localStorage; Replay tutorial in the pause menu clears that), so normal mode runs its difficulty clock 1.2× fast. Hard mode starts a minute in, where normal mode reaches `and`, and counts that as level 1. It runs the difficulty clock 1.6× faster, aims prompts higher on the curve, and makes every timer 15% shorter. Press Cmd+D (Ctrl+D on Windows/Linux) to see each prompt's score breakdown.
 

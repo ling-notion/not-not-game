@@ -25,7 +25,7 @@
     symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
     or: { title: '"or" gives you a choice', body: 'Either key works.', expr: or(c('red'), c('blue')) },
     and: { title: '"and" means press them all', body: 'Press every key named, in any order.', expr: all([c('red'), c('blue')]) },
-    lyingColors: { title: 'Colors can lie', body: 'Read the word and ignore the color it is painted in.', expr: c('green'), lying: true },
+    lyingColors: { title: 'Colors can lie', body: 'Go by what the text says, not the color it is written in. Here the word says green, so press green.', expr: c('green'), lying: true },
     memory: { title: '"last key" is the key you just pressed', body: 'Press the same key you answered with last round.', icon: '↺' },
     shuffle: { title: 'The keys shuffle', body: 'Every so often the colors and shapes swap keys. Check the pad before answering.', icon: '🔀' },
     chaos: { title: 'Chaos mode', body: 'Everything so far, mixed together and coming faster.', icon: '🌀' },

@@ -188,13 +188,14 @@ test('"missing" prompts list three distinct keys and accept only the fourth', ()
   const level = N.LEVELS.findIndex((l) => l.intro.includes('missing'));
   let seen = 0;
   for (let i = 0; i < 500; i++) {
-    const e = next(level, CTX);
+    // "missing" is heavy, so it only appears once the curve is near its cost.
+    const e = next(level, { ...CTX, seconds: 240 });
     if (e.type !== 'missing') continue;
     seen++;
     assert.equal(new Set(e.items.flatMap((item) => [...evaluate(item)])).size, 3, toText(e));
     assert.equal(evaluate(e).size, 1, toText(e));
   }
-  assert.ok(seen > 80, `missing prompts seen: ${seen}`);
+  assert.ok(seen > 40, `missing prompts seen: ${seen}`);
 });
 
 test('difficulty rises smoothly with time: no jumps, a few surprises, some easy prompts late', () => {
@@ -217,15 +218,28 @@ test('difficulty rises smoothly with time: no jumps, a few surprises, some easy 
   }
 });
 
-test('a newly unlocked mechanic is featured right away', () => {
+test('a newly unlocked mechanic is featured right away, unless it is far above the curve', () => {
   const next = N.createGenerator(N.makeRng(83));
-  ['not', 'nothing', 'or', 'and', 'missing', 'memory'].forEach((id) => {
+  ['not', 'nothing', 'or', 'and', 'memory'].forEach((id) => {
     const level = N.LEVELS.findIndex((l) => l.id === id);
     const seconds = N.LEVELS[level].at + 3;
     const prompts = Array.from({ length: 400 }, () => next(level, { ...CTX, seconds }));
     const share = prompts.filter((e) => N.mechanicsOf(e).has(id)).length / prompts.length;
     assert.ok(share > 0.2, `${id} featured in ${share}`);
   });
+  const missingAt = N.LEVELS.find((l) => l.id === 'missing').at;
+  const early = Array.from({ length: 400 }, () => next(N.levelFor(missingAt), { ...CTX, seconds: missingAt + 3 }));
+  assert.ok(early.every((e) => N.difficulty(e) <= N.targetDifficulty(missingAt + 3) + 1.5), 'no early spike from "missing"');
+});
+
+test('no prompt jumps more than a step above the one before', () => {
+  const next = N.createGenerator(N.makeRng(97));
+  let prev = null;
+  for (let s = 0; s < 400; s += 2) {
+    const d = N.difficulty(next(N.levelFor(s), { ...CTX, seconds: s }));
+    if (prev != null) assert.ok(d <= Math.max(prev, N.targetDifficulty(s) - 1, 0.5) + 1.5 + 1e-9, `jump ${prev} -> ${d} at ${s}s`);
+    prev = d;
+  }
 });
 
 test('"and" prompts need every named key', () => {
