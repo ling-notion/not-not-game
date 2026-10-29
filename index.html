@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=24">
+  <link rel="stylesheet" href="src/style.css?v=25">
 </head>
 <body>
   <header class="hud">
@@ -47,23 +47,23 @@
   <section id="title-screen" class="overlay">
     <div class="card">
       <h1>Not <span class="strike">not</span> game</h1>
-      <p>Each arrow key has a <b>direction</b>, a <b>color</b>, and a <b>shape</b>.</p>
-      <p>Read the expression and press a key that matches it before time runs out.</p>
-      <ul class="rules">
-        <li><code>green</code> → press the green key</li>
-        <li><code>not red</code> → press any key that isn't red</li>
-        <li><code>not not up</code> → press up</li>
-        <li><code>nothing</code> → don't press anything</li>
-        <li><code>red and blue</code> → press both keys</li>
-        <li><code>last key</code> → the key you pressed last round</li>
-        <li><code>missing: red green blue</code> → press the one not listed</li>
+      <p class="tagline">Read the rule. Press a matching key. Fast.</p>
+      <div class="legend" aria-hidden="true"></div>
+      <ul class="examples">
+        <li><code class="c-green">green</code><span class="ex-keys" data-keys="right"></span></li>
+        <li><code>not <span class="c-red">red</span></code><span class="ex-keys" data-keys="right down left"></span></li>
+        <li><code>not not up</code><span class="ex-keys" data-keys="up"></span></li>
+        <li><code>nothing</code><span class="ex-keys"><span class="ex-icon">∅</span></span></li>
+        <li><code><span class="c-red">red</span> and <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="up+down"></span></li>
+        <li><code>last key</code><span class="ex-keys"><span class="ex-icon">↺</span></span></li>
+        <li class="wide"><code>missing: <span class="c-red">red</span> <span class="c-green">green</span> <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="left"></span></li>
       </ul>
       <button class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
         <span><b>Hard mode</b></span>
       </button>
       <p class="hint">Press any arrow key or tap to start</p>
-      <p class="small">Esc pauses, R restarts. On a phone, tap the four tiles.</p>
+      <p class="small keys-hint"><kbd>Esc</kbd> pause <kbd>R</kbd> restart <span class="dot">·</span> tap tiles on a phone</p>
       <p class="small version">Version <span id="version"></span></p>
     </div>
   </section>
@@ -97,8 +97,8 @@
     </div>
   </section>
 
-  <script src="src/expressions.js?v=24"></script>
-  <script src="src/sound.js?v=24"></script>
-  <script src="src/game.js?v=24"></script>
+  <script src="src/expressions.js?v=25"></script>
+  <script src="src/sound.js?v=25"></script>
+  <script src="src/game.js?v=25"></script>
 </body>
 </html>

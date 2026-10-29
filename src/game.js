@@ -73,6 +73,21 @@
     });
   }
 
+  // Title card: a mini pad of the four keys, and each example's answer drawn as shapes.
+  function renderTitleCard() {
+    const mini = (k, size) => `<span class="mini" style="--c:${HEX[k.color]}">${shapeSvg(k.shape, HEX[k.color], size)}</span>`;
+    document.querySelector('.legend').innerHTML = KEYS.map((k) => `
+      <div class="legend-key" style="grid-area:${k.id}">
+        <span class="arrow">${k.glyph}</span>${shapeSvg(k.shape, HEX[k.color], 26)}
+        <span class="label">${k.color}<br>${k.shape}</span>
+      </div>`).join('');
+    document.querySelectorAll('.ex-keys[data-keys]').forEach((el) => {
+      el.innerHTML = el.dataset.keys.split(' ').map((group) =>
+        group.split('+').map((id) => mini(KEYS.find((k) => k.id === id), 18)).join('<span class="plus">+</span>')
+      ).join('<span class="or">/</span>');
+    });
+  }
+
   const pickOther = (exclude) => {
     const options = COLORS.filter((c) => c !== exclude);
     return options[Math.floor(Math.random() * options.length)];
@@ -545,6 +560,7 @@
   }
 
   renderLegend();
+  renderTitleCard();
   renderHard();
   renderDebug(false);
   // The ?v= number on this script's URL doubles as the visible version, to spot stale caches.

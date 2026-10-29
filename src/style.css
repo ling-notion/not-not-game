@@ -186,6 +186,37 @@ body.shake .stage { animation: shake 0.3s; }
 .strike { text-decoration: line-through; color: var(--muted); }
 .rules { padding-left: 20px; color: var(--muted); }
 .rules code { color: var(--text); background: var(--panel-2); padding: 1px 6px; border-radius: 6px; }
+.tagline { margin: 0 0 16px; color: var(--muted); font-size: 17px; }
+.legend {
+  display: grid; grid-template-areas: ". up ." "left down right"; grid-template-columns: repeat(3, 76px);
+  gap: 6px; justify-content: center; margin: 0 0 18px;
+}
+.legend-key {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0;
+  background: var(--panel-2); border-radius: 10px; line-height: 1.1;
+}
+.legend-key .arrow { font-size: 13px; color: var(--muted); }
+.legend-key .label { font-size: 10px; color: var(--muted); text-align: center; }
+.examples {
+  list-style: none; padding: 0; margin: 0 0 4px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.examples li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--panel-2);
+}
+.examples li.wide { grid-column: 1 / -1; }
+.examples code { font: 600 13px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+.c-red { color: #ff5a5f; } .c-green { color: #3ddc84; } .c-blue { color: #4da3ff; } .c-yellow { color: #ffd23f; }
+.ex-keys { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.ex-keys .mini { display: inline-flex; }
+.ex-keys .plus, .ex-keys .or { color: var(--muted); font-size: 11px; }
+.ex-icon { font-size: 16px; color: var(--muted); line-height: 1; }
+kbd {
+  display: inline-block; padding: 0 6px; margin-right: 2px; border-radius: 5px; border: 1px solid #3a3a4a;
+  border-bottom-width: 2px; background: var(--panel-2); color: var(--text); font: 11px/1.6 ui-monospace, monospace;
+}
+.keys-hint .dot { margin: 0 4px; }
 .final { font-size: 24px; font-weight: 700; }
 .hard-toggle {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -241,6 +272,7 @@ body.is-paused .prompt { filter: blur(14px); }
   .tile .label { font-size: 11px; }
   .card { padding: 22px 20px; }
   .card h1 { font-size: 32px; }
+  .examples { grid-template-columns: 1fr; }
 }
 
 @keyframes shuffle { 0% { transform: rotateY(90deg); } 60% { transform: rotateY(-12deg); } 100% { transform: none; } }
