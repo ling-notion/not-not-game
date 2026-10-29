@@ -124,3 +124,15 @@ test('"or" prompts are never redundant or always-true', () => {
     }
   }
 });
+
+test('compound formats never repeat within two prompts', () => {
+  assert.equal(N.formatOf(not(not(or(atom('dir', 'up'), atom('color', 'blue'))))), 'not not ( x or x )');
+  const next = N.createGenerator(N.makeRng(41));
+  for (let level = 0; level < N.LEVELS.length; level++) {
+    const formats = Array.from({ length: 1000 }, () => N.formatOf(next(level)));
+    formats.forEach((f, i) => {
+      if (f === 'x') return;
+      assert.ok(f !== formats[i - 1] && f !== formats[i - 2], `level ${level}: "${f}" repeated at ${i}`);
+    });
+  }
+});

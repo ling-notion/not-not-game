@@ -122,6 +122,11 @@
     return isSubset(a, b) || isSubset(b, a) || new Set([...a, ...b]).size === KEYS.length;
   }
 
+  // The prompt's structure with each word blanked out, e.g. "not not (x or x)".
+  function formatOf(expr) {
+    return toTokens(expr).map((t) => (t.kind === 'atom' && t.atom.attr !== 'none' && t.atom.attr !== 'any' ? 'x' : t.text)).join(' ');
+  }
+
   function createGenerator(rng = Math.random) {
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
     const randomAtom = (attr = pick(ATTRS)) => atom(attr, pick(KEYS)[attr]);
@@ -161,7 +166,9 @@
       ],
     ];
 
+    const RECENT_FORMATS = 2;
     let last = '';
+    let recentFormats = [];
     return function next(level) {
       for (let attempt = 0; attempt < 50; attempt++) {
         // Favor the newest rule, but keep mixing in everything learned so far.
@@ -171,10 +178,16 @@
         const answers = evaluate(expr);
         // "Press nothing" only comes from prompts that say nothing outright, never from a contradiction.
         const accidentalNothing = answers.size === 0 && !mentionsNothing(expr);
-        if (text === last || accidentalNothing || hasPointlessOr(expr)) continue;
+        // Compound formats can't repeat within the last few prompts, so the mix feels random.
+        const format = formatOf(expr);
+        const repeatsFormat = format !== 'x' && recentFormats.includes(format);
+        if (text === last || accidentalNothing || hasPointlessOr(expr) || repeatsFormat) continue;
         last = text;
+        recentFormats = [format, ...recentFormats].slice(0, RECENT_FORMATS);
         return expr;
       }
+      last = '';
+      recentFormats = ['x', ...recentFormats].slice(0, RECENT_FORMATS);
       return randomAtom();
     };
   }
@@ -182,7 +195,7 @@
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS,
     atom, not, or, and, ANYTHING, NOTHING,
-    evaluate, hasPointlessOr, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
+    evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.NotNot = api;
