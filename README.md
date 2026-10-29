@@ -46,9 +46,9 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 64s | Words are drawn in misleading colors |
 | 78s | `last key`: the key you pressed in the previous round |
 | 92s | Shuffle: every 12 rounds the colors and shapes move to different arrows |
-| 106s | `missing: red green blue`: press the key that isn't listed |
-| 124s | Chaos: the difficulty cap rises so mechanics combine more |
-| 150s | Endless: same rules, the timer keeps shrinking |
+| 108s | Chaos: mechanics combine more as the curve keeps rising |
+| 128s | `missing: red green blue`: press the key that isn't listed (the heaviest mechanic) |
+| 154s | Endless: same rules, the timer keeps shrinking |
 
 Levels only decide which mechanics exist. How hard prompts are follows a smooth curve over time (`targetDifficulty` in `src/expressions.js`). Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS`). Each prompt then aims at its own point near the curve:
 - most land close to the curve

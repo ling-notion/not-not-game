@@ -98,9 +98,9 @@
     { id: 'lyingColors', at: 64, intro: 'New: words lie about their color' },
     { id: 'memory', at: 78, intro: 'New: "last key" means the key you just pressed' },
     { id: 'shuffle', at: 92, intro: 'New: the colors and shapes swap keys' },
-    { id: 'missing', at: 106, intro: 'New: press the one that\'s missing' },
-    { id: 'chaos', at: 124, intro: 'Chaos mode' },
-    { id: 'endless', at: 150, intro: 'Endless: it only gets faster' },
+    { id: 'chaos', at: 108, intro: 'Chaos mode' },
+    { id: 'missing', at: 128, intro: 'New: press the one that\'s missing' },
+    { id: 'endless', at: 154, intro: 'Endless: it only gets faster' },
   ];
 
   // Index of the level with this id, e.g. featureLevel('shuffle').
@@ -136,10 +136,12 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   // Answer window in ms: the base shrinks smoothly over time, and harder prompts get reading time.
   function timeLimit(level, seconds, expr) {
-    const base = 1250 + 1050 * Math.exp(-seconds / 160);
+    const base = 1200 + 1100 * Math.exp(-seconds / 160);
+    // Reading-time help shrinks as the game goes on, so later prompts keep getting tighter overall.
+    const reading = 230 * (0.55 + 0.45 * Math.exp(-seconds / 150));
     // Each extra key an "and" prompt needs gets time for another press.
     const extraPresses = needsAll(expr) ? (expr.items.length - 1) * 420 : 0;
-    return Math.round(base + Math.max(0, difficulty(expr) - 0.5) * 230 + extraPresses);
+    return Math.round(base + Math.max(0, difficulty(expr) - 0.5) * reading + extraPresses);
   }
 
   // The typical prompt difficulty at a point in the game: rises quickly at first, then levels
@@ -194,7 +196,7 @@
   const STYLE_MECHANICS_LIST = ['symbols', 'lyingColors'];
   const WEIGHTS = {
     word: 0.5, nothing: 1, memory: 2, not: 1, or: 1.5,
-    missing: 5, missingMixed: 1.5, and2: 2.5, and3: 4.5,
+    missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5,
     symbols: 0.75, lyingColors: 1.5,
   };
 
@@ -344,9 +346,15 @@
       const roll = rng();
       const aim = Math.max(0.5, roll < 0.15 ? target - 1.5 : roll < 0.88 ? target - 0.6 + rng() * 1.1 : target + 1);
       // A mechanic unlocked moments ago is shown often but on its own, in a simple prompt.
-      const { id: newest, at } = LEVELS[level];
-      const isNew = seconds - at < INTRO_SECONDS && (LOGIC_MECHANICS.includes(newest) || STYLE_MECHANICS.includes(newest));
-      const introduceFirst = isNew && rng() < 0.6;
+      const { id: latest, at } = LEVELS[level];
+      const isNew = seconds - at < INTRO_SECONDS && (LOGIC_MECHANICS.includes(latest) || STYLE_MECHANICS.includes(latest));
+      // Occasionally refresh an earlier mechanic in a simple standalone prompt, so heavy ones
+      // (like "missing") keep appearing before the curve is high enough to include them.
+      const refreshable = LOGIC_MECHANICS.filter((m) => has(m));
+      // Heavier mechanics are refreshed more often, since the curve rarely reaches them on its own.
+      const refresh = !isNew && refreshable.length && rng() < 0.07 ? weighted(refreshable.map((m) => [m, introCost(m)])) : null;
+      const newest = refresh || latest;
+      const introduceFirst = refresh ? true : isNew && rng() < 0.6;
       for (let attempt = 0; attempt < 300; attempt++) {
         // An introduction is a preference: other rules (like no repeated formats) can block it.
         const introduce = introduceFirst && attempt < 100;

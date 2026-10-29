@@ -202,7 +202,7 @@ test('difficulty rises smoothly with time: no jumps, a few surprises, some easy 
     const median = scores[250];
     const target = N.targetDifficulty(seconds);
     // Nothing far above the curve, except a new mechanic's own simple introduction.
-    assert.ok(scores[scores.length - 1] <= Math.max(target + 1.2, 5.5), `${seconds}s max ${scores[scores.length - 1]}`);
+    assert.ok(scores[scores.length - 1] <= Math.max(target + 1.2, 6.5), `${seconds}s max ${scores[scores.length - 1]}`);
     // The typical prompt never drops sharply or leaps between neighboring moments.
     assert.ok(median >= previousMedian - 0.8 && median <= previousMedian + 1.5, `${seconds}s median ${median} after ${previousMedian}`);
     previousMedian = median;
