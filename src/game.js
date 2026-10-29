@@ -641,8 +641,8 @@
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
     if (e.code === 'KeyD' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleDebug(); return; }
-    // Secret: Cmd/Ctrl+N where the browser lets the page have it, or Shift+N anywhere.
-    if (e.code === 'KeyN' && (e.metaKey || e.ctrlKey || e.shiftKey)) { e.preventDefault(); summonNightmare(); return; }
+    // Secret: Shift+N summons nightmare mode.
+    if (e.code === 'KeyN' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); summonNightmare(); return; }
     // Leave other browser shortcuts (Cmd+R, Cmd+H, ...) to the browser.
     if (e.metaKey || e.ctrlKey) return;
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
