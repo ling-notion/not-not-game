@@ -258,7 +258,8 @@ kbd {
   display: inline-block; padding: 0 6px; margin-right: 2px; border-radius: 5px; border: 1px solid #3a3a4a;
   border-bottom-width: 2px; background: var(--panel-2); color: var(--text); font: 11px/1.6 ui-monospace, monospace;
 }
-.keys-hint .dot { margin: 0 4px; }
+.keys-hint .dot { margin: 0 6px; }
+.keys-hint kbd ~ kbd { margin-left: 10px; }
 .final { font-size: 24px; font-weight: 700; }
 .hard-toggle {
   display: flex; align-items: center; gap: 12px; width: 100%;
