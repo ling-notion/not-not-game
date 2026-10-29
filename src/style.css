@@ -92,7 +92,7 @@ body.shake .stage { animation: shake 0.3s; }
   font-weight: 600;
   opacity: 0;
 }
-.banner.show { animation: banner 2.4s ease forwards; }
+.banner.show { animation: banner var(--banner-time, 2.4s) ease forwards; }
 
 .prompt-wrap { width: min(720px, 100%); text-align: center; }
 .prompt {
@@ -279,7 +279,7 @@ body.is-paused .prompt { filter: blur(14px); }
 @keyframes pop { from { transform: scale(0.92); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
 @keyframes press { 50% { transform: scale(0.92); } }
 @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
-@keyframes banner { 0% { opacity: 0; transform: translateY(-6px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes banner { 0% { opacity: 0; transform: translateY(-6px); } 6%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
 .debug {

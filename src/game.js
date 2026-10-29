@@ -190,8 +190,10 @@
     els.hudBest.textContent = best;
   }
 
+  // Normal mode leaves new-mechanic instructions up longer; hard-mode players already know them.
   function showBanner(text) {
     els.banner.textContent = text;
+    els.banner.style.setProperty('--banner-time', state.runHard ? '2.4s' : '4.5s');
     els.banner.classList.remove('show');
     void els.banner.offsetWidth;
     els.banner.classList.add('show');
