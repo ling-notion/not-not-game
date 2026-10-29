@@ -174,7 +174,6 @@
     timers: [],
     history: [], // one { level, result: 'hit' | 'miss' | 'slow' } per round
     bestStreak: 0,
-    hardestSolved: null,
     nemesis: null,
     sinceShuffle: 0, // rounds played since the pad last shuffled
     lastKey: null, // key pressed in the previous round, for "last key" prompts
@@ -251,7 +250,7 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { practice: tutorial || !practiced() ? 0 : -1, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { practice: tutorial || !practiced() ? 0 : -1, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -444,7 +443,6 @@
     const ops = opCount(expr);
     if (result === 'hit') {
       state.bestStreak = Math.max(state.bestStreak, state.streak + 1);
-      if (!state.hardestSolved || ops > state.hardestSolved.ops) state.hardestSolved = { text: toText(expr), ops };
     } else if (!state.nemesis || ops >= state.nemesis.ops) {
       state.nemesis = { text: toText(expr), ops };
     }
@@ -465,7 +463,6 @@
       `🔥 Best streak ${state.bestStreak}`,
       ...rows,
     ];
-    if (state.hardestSolved) lines.push(`💪 Solved: ${state.hardestSolved.text}`);
     if (state.nemesis) lines.push(`💀 Got me: ${state.nemesis.text}`);
     lines.push(location.href.split(/[?#]/)[0]);
     return lines.join('\n');

@@ -286,6 +286,7 @@ kbd {
 .share {
   background: var(--accent); color: #14101f; border: 0; border-radius: 10px;
   padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
 }
 .share-status { margin-left: 10px; color: var(--good); font-weight: 600; }
 .pause-help { margin: 10px 0 4px; }
