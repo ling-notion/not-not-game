@@ -6,6 +6,9 @@
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
   const BEST_KEY = 'not-not-best';
+  const HARD_KEY = 'not-not-hard';
+  // Hard mode runs the difficulty clock faster and trims every answer window.
+  const HARD = { clock: 1.6, time: 0.85 };
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
 
   const $ = (sel) => document.querySelector(sel);
@@ -26,6 +29,7 @@
     finalScore: $('#final-score'),
     best: $('#best-score'),
     mute: $('#mute'),
+    hard: $('#hard'),
     share: $('#share'),
     sharePreview: $('#share-preview'),
     shareStatus: $('#share-status'),
@@ -102,8 +106,14 @@
     return `<span class="atom" style="color:${color}">${t.text}</span>`;
   }
 
-  let best = 0;
-  try { best = Number(localStorage.getItem(BEST_KEY)) || 0; } catch (_) { /* storage unavailable */ }
+  let hard = false;
+  try { hard = localStorage.getItem(HARD_KEY) === '1'; } catch (_) { /* storage unavailable */ }
+  // Hard mode keeps its own best score so the two aren't compared directly.
+  const bestKey = () => (hard ? `${BEST_KEY}-hard` : BEST_KEY);
+  const loadBest = () => {
+    try { return Number(localStorage.getItem(bestKey())) || 0; } catch (_) { return 0; }
+  };
+  let best = loadBest();
 
   const state = {
     phase: 'title', // title | playing | over
@@ -157,6 +167,7 @@
     els.title.hidden = true;
     els.over.hidden = true;
     document.body.classList.add('playing');
+    els.hard.disabled = true;
     showFeedback('', '');
     updateHud();
     showBanner(LEVELS[0].intro);
@@ -168,7 +179,7 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
-    const seconds = elapsed();
+    const seconds = elapsed() * (hard ? HARD.clock : 1);
     const level = levelFor(seconds);
     if (level > state.level) {
       state.level = level;
@@ -176,7 +187,7 @@
       window.Sound.levelUp();
     }
     const expr = nextExpr(state.level);
-    const limit = timeLimit(state.level, seconds, expr);
+    const limit = timeLimit(state.level, seconds, expr) * (hard ? HARD.time : 1);
     state.round = { expr, answers: evaluate(expr), limit, deadline: performance.now() + limit, active: true };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
@@ -243,7 +254,7 @@
       rows.push(`L${level + 1} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
     });
     const lines = [
-      `Not Not 🧠 ${state.score} pts · Level ${state.level + 1}`,
+      `Not Not 🧠 ${state.score} pts · Level ${state.level + 1}${hard ? ' · 🌶️ Hard' : ''}`,
       `🔥 Best streak ${state.bestStreak}`,
       ...rows,
     ];
@@ -272,10 +283,11 @@
     state.phase = 'over';
     state.round = null;
     document.body.classList.remove('playing');
+    els.hard.disabled = false;
     window.Sound.gameOver();
     if (state.score > best) {
       best = state.score;
-      try { localStorage.setItem(BEST_KEY, String(best)); } catch (_) { /* storage unavailable */ }
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) { /* storage unavailable */ }
     }
     els.finalScore.textContent = state.score;
     els.sharePreview.textContent = shareText();
@@ -362,6 +374,24 @@
   // A hidden tab pauses so it doesn't cost lives; the player resumes explicitly.
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
+  function renderHard() {
+    els.hard.textContent = hard ? 'Hard: on' : 'Hard: off';
+    els.hard.setAttribute('aria-pressed', String(hard));
+    els.hard.classList.toggle('on', hard);
+  }
+
+  // Only switchable between games, so a run's score always reflects one setting.
+  els.hard.addEventListener('click', () => {
+    els.hard.blur();
+    if (state.phase === 'playing') return;
+    hard = !hard;
+    try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }
+    best = loadBest();
+    els.best.textContent = best;
+    renderHard();
+    updateHud();
+  });
+
   els.mute.addEventListener('click', () => {
     const muted = window.Sound.toggleMute();
     els.mute.textContent = muted ? 'Sound: off' : 'Sound: on';
@@ -370,6 +400,7 @@
   });
 
   renderLegend();
+  renderHard();
   updateHud();
   els.best.textContent = best;
   requestAnimationFrame(tick);
