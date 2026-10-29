@@ -29,6 +29,7 @@
     finalScore: $('#final-score'),
     best: $('#best-score'),
     mute: $('#mute'),
+    hardBadge: $('#hard-badge'),
     hardToggles: [...document.querySelectorAll('.hard-toggle')],
     restart: $('#restart'),
     pauseNote: $('#pause-note'),
@@ -147,6 +148,8 @@
     els.score.textContent = state.score;
     els.streak.textContent = state.streak >= 3 ? `${state.streak} streak` : '';
     els.level.textContent = `Level ${state.level + 1}`;
+    // Shows the running game's setting in play, otherwise the one the next game will use.
+    els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
   }
 

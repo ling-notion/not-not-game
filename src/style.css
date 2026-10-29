@@ -47,6 +47,12 @@ body.shake .stage { animation: shake 0.3s; }
 .streak { position: absolute; left: calc(100% + 12px); white-space: nowrap; }
 .level { color: var(--muted); font-size: 15px; }
 .streak { color: var(--accent); font-weight: 600; font-size: 15px; }
+.hard-badge {
+  position: absolute; right: calc(100% + 12px); white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 700;
+  color: #ffb36b; background: rgba(255, 179, 107, 0.14);
+}
+.hard-badge[hidden] { display: none; }
 .hud-right { display: flex; align-items: center; gap: 8px; }
 .score-box {
   display: flex; flex-direction: column; align-items: flex-end;
@@ -218,6 +224,7 @@ body.is-paused .prompt { filter: blur(14px); }
   .hud-mid { position: relative; left: auto; transform: none; order: 3; width: 100%; display: flex; justify-content: center; }
   .hud-mid .level { position: relative; }
   .streak { left: auto; right: 16px; }
+  .hard-badge { right: auto; left: 16px; }
 }
 
 @media (max-width: 560px) {
