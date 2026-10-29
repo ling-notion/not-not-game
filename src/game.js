@@ -65,7 +65,6 @@
     introTitle: $('#intro-title'),
     introBody: $('#intro-body'),
     introExample: $('#intro-example'),
-    replayTutorial: $('#replay-tutorial'),
     pauseNote: $('#pause-note'),
     share: $('#share'),
     sharePreview: $('#share-preview'),
@@ -555,9 +554,6 @@
     seen.add(id);
     try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (_) { /* storage unavailable */ }
   }
-  function resetSeen() {
-    try { localStorage.removeItem(SEEN_KEY); } catch (_) { /* storage unavailable */ }
-  }
   // Intro ids for the rules a prompt actually shows, in teaching order.
   const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
   function rulesIn(expr) {
@@ -642,8 +638,6 @@
   els.share.addEventListener('click', () => { share(); els.share.blur(); });
   els.restart.addEventListener('pointerdown', (e) => e.stopPropagation());
   els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
-  els.replayTutorial.addEventListener('pointerdown', (e) => e.stopPropagation());
-  els.replayTutorial.addEventListener('click', () => { els.replayTutorial.blur(); resetSeen(); startGame(); });
   els.intro.addEventListener('pointerdown', (e) => { e.preventDefault(); advanceIntro(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
