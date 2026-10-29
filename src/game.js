@@ -548,7 +548,7 @@
     const id = state.introQueue[0];
     const intro = INTROS[id];
     const fresh = loadSeen().size === 0 && id === 'basic';
-    els.introTag.textContent = fresh ? 'How to play' : 'New mechanic';
+    els.introTag.textContent = fresh ? 'How to play' : 'New rule';
     els.introTitle.textContent = intro.title;
     els.introBody.textContent = intro.body;
     els.introExample.innerHTML = intro.expr ? exampleHtml(intro) : `<div class="intro-icon">${intro.icon}</div>`;
