@@ -142,7 +142,7 @@
       [() => notN(randomAtom(), pick([2, 3, 4])), () => or(notN(randomAtom(), 2), not(randomAtom()))],
       [
         () => not(or(notN(randomAtom(), 2), randomAtom())),
-        () => or(not(or(...twoAtoms())), NOTHING),
+        () => notN(or(...twoAtoms()), 3),
         () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
       ],
     ];

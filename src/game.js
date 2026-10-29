@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, evaluate, toTokens, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, LEVELS, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -26,6 +26,9 @@
     finalScore: $('#final-score'),
     best: $('#best-score'),
     mute: $('#mute'),
+    share: $('#share'),
+    sharePreview: $('#share-preview'),
+    shareStatus: $('#share-status'),
     tiles: Object.fromEntries(KEYS.map((k) => [k.id, document.querySelector(`[data-key="${k.id}"]`)])),
   };
 
@@ -114,6 +117,10 @@
     pausedAt: 0,
     pendingRound: false,
     timers: [],
+    history: [], // one { level, result: 'hit' | 'miss' | 'slow' } per round
+    bestStreak: 0,
+    hardestSolved: null,
+    nemesis: null, // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
 
@@ -145,7 +152,7 @@
   function startGame() {
     clearTimers();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], bestStreak: 0, hardestSolved: null, nemesis: null });
     els.paused.hidden = true;
     els.title.hidden = true;
     els.over.hidden = true;
@@ -185,6 +192,7 @@
     const pressedNothing = keyId === null;
     const correct = pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
+    recordRound(round.expr, correct ? 'hit' : pressedNothing ? 'slow' : 'miss');
 
     if (correct) {
       state.streak += 1;
@@ -213,6 +221,53 @@
     else later(nextRound, correct ? 420 : 1100);
   }
 
+  function recordRound(expr, result) {
+    state.history.push({ level: state.level, result });
+    const ops = opCount(expr);
+    if (result === 'hit') {
+      state.bestStreak = Math.max(state.bestStreak, state.streak + 1);
+      if (!state.hardestSolved || ops > state.hardestSolved.ops) state.hardestSolved = { text: toText(expr), ops };
+    } else if (!state.nemesis || ops >= state.nemesis.ops) {
+      state.nemesis = { text: toText(expr), ops };
+    }
+  }
+
+  // Wordle-style summary: one emoji row per level reached, plus the standout prompts.
+  function shareText() {
+    const marks = { hit: '🟩', miss: '🟥', slow: '⬛' };
+    const rows = [];
+    LEVELS.forEach((_, level) => {
+      const rounds = state.history.filter((h) => h.level === level);
+      if (!rounds.length) return;
+      const squares = rounds.slice(0, 10).map((h) => marks[h.result]).join('');
+      rows.push(`L${level + 1} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
+    });
+    const lines = [
+      `Not Not 🧠 ${state.score} pts · Level ${state.level + 1}`,
+      `🔥 Best streak ${state.bestStreak}`,
+      ...rows,
+    ];
+    if (state.hardestSolved) lines.push(`💪 Solved: ${state.hardestSolved.text}`);
+    if (state.nemesis) lines.push(`💀 Got me: ${state.nemesis.text}`);
+    lines.push(location.href.split(/[?#]/)[0]);
+    return lines.join('\n');
+  }
+
+  async function share() {
+    const text = shareText();
+    try {
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+        await navigator.share({ text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      els.shareStatus.textContent = 'Copied!';
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      els.shareStatus.textContent = 'Select the text above to copy it';
+    }
+  }
+
   function endGame() {
     state.phase = 'over';
     state.round = null;
@@ -223,6 +278,8 @@
       try { localStorage.setItem(BEST_KEY, String(best)); } catch (_) { /* storage unavailable */ }
     }
     els.finalScore.textContent = state.score;
+    els.sharePreview.textContent = shareText();
+    els.shareStatus.textContent = '';
     els.best.textContent = best;
     els.over.hidden = false;
     state.acceptRestartAt = performance.now() + 900;
@@ -296,6 +353,9 @@
   [els.title, els.over].forEach((overlay) => {
     overlay.addEventListener('pointerdown', (e) => { e.preventDefault(); handleInput('up'); });
   });
+  // Keep share interactions from also counting as a tap-to-restart on the overlay.
+  [els.share, els.sharePreview].forEach((el) => el.addEventListener('pointerdown', (e) => e.stopPropagation()));
+  els.share.addEventListener('click', () => { share(); els.share.blur(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 

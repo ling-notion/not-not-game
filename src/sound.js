@@ -37,20 +37,21 @@
   }
 
   // Each arrow gets its own note from a major pentatonic chord so presses sound musical together.
-  const KEY_NOTES = { up: 659.25, right: 783.99, down: 523.25, left: 587.33 };
+  const KEY_NOTES = { up: 329.63, right: 392.0, down: 261.63, left: 293.66 };
 
   const Sound = {
     unlock: ensure,
     press(keyId) {
       const f = KEY_NOTES[keyId] || 600;
       tone(f, { dur: 0.12, type: 'triangle', vol: 0.5 });
-      tone(f * 2, { dur: 0.06, type: 'sine', vol: 0.15 });
+      tone(f * 2, { dur: 0.05, type: 'sine', vol: 0.08 });
     },
     correct(streak = 0) {
-      // Pitch climbs with the streak, capped at one octave.
-      const lift = Math.pow(2, Math.min(streak, 12) / 12);
-      tone(880 * lift, { start: 0.05, dur: 0.12, type: 'sine', vol: 0.4 });
-      tone(1318.5 * lift, { start: 0.11, dur: 0.2, type: 'sine', vol: 0.35 });
+      // Climbs one pentatonic step every 3 answers in a streak, topping out an octave up.
+      const steps = [0, 2, 4, 7, 9, 12];
+      const lift = Math.pow(2, steps[Math.min(Math.floor(streak / 3), steps.length - 1)] / 12);
+      tone(523.25 * lift, { start: 0.04, dur: 0.12, type: 'sine', vol: 0.35 });
+      tone(783.99 * lift, { start: 0.1, dur: 0.18, type: 'sine', vol: 0.3 });
     },
     correctNothing() {
       tone(392, { dur: 0.25, type: 'sine', vol: 0.35, slide: 784 });

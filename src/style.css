@@ -45,11 +45,15 @@ body.shake .stage { animation: shake 0.3s; }
 .streak { position: absolute; left: calc(100% + 12px); white-space: nowrap; }
 .level { color: var(--muted); font-size: 15px; }
 .streak { color: var(--accent); font-weight: 600; font-size: 15px; }
-.hud-right { justify-self: end; display: flex; align-items: baseline; gap: 10px; }
-.score-label { color: var(--muted); font-size: 14px; }
-.score { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.hud-right { display: flex; align-items: center; gap: 8px; }
+.score-box {
+  display: flex; flex-direction: column; align-items: flex-end;
+  line-height: 1.1; margin-right: 6px;
+}
+.score-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.score { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.best-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .mute {
-  margin-left: 12px;
   background: var(--panel);
   color: var(--muted);
   border: 1px solid var(--panel-2);
@@ -166,12 +170,24 @@ body.shake .stage { animation: shake 0.3s; }
   border-radius: 18px;
   padding: 28px 32px;
   line-height: 1.55;
+  max-height: 100%;
+  overflow-y: auto;
 }
 .card h1 { margin: 0 0 12px; font-size: 40px; }
 .strike { text-decoration: line-through; color: var(--muted); }
 .rules { padding-left: 20px; color: var(--muted); }
 .rules code { color: var(--text); background: var(--panel-2); padding: 1px 6px; border-radius: 6px; }
 .final { font-size: 24px; font-weight: 700; }
+.share-preview {
+  margin: 12px 0; padding: 12px 14px; border-radius: 12px;
+  background: var(--panel-2); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap; user-select: text;
+}
+.share {
+  background: var(--accent); color: #14101f; border: 0; border-radius: 10px;
+  padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer;
+}
+.share-status { margin-left: 10px; color: var(--good); font-weight: 600; }
 .small { color: var(--muted); font-size: 13px; }
 body.is-paused .prompt { filter: blur(14px); }
 .hint { color: var(--accent); font-weight: 600; animation: pulse 1.6s ease-in-out infinite; }
@@ -189,7 +205,7 @@ body.is-paused .prompt { filter: blur(14px); }
   .lives { font-size: 22px; }
   .score { font-size: 22px; }
   .best-label { display: none; }
-  .mute { margin-left: 4px; padding: 6px 8px; }
+  .mute { padding: 6px 8px; }
   .stage { gap: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
   .pad { grid-template-columns: repeat(3, min(30vw, 120px)); }
   .tile { height: min(28vw, 116px); }

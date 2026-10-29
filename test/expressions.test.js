@@ -79,3 +79,34 @@ test('generated prompts never use "and", and only say nothing outright', () => {
     }
   }
 });
+
+// Reads prompt text back with standard precedence (not > and > or) so the parentheses can be checked.
+function parse(text) {
+  const toks = text.match(/\(|\)|[a-z]+/g);
+  let i = 0;
+  const word = (w) => { const k = N.KEYS.find((k) => k.dir === w || k.color === w || k.shape === w); return atom(k.dir === w ? 'dir' : k.color === w ? 'color' : 'shape', w); };
+  const primary = () => {
+    const t = toks[i++];
+    if (t === 'not') return not(primary());
+    if (t === '(') { const e = orExpr(); i++; return e; }
+    if (t === 'nothing') return NOTHING;
+    if (t === 'anything') return ANYTHING;
+    return word(t);
+  };
+  const andExpr = () => { let e = primary(); while (toks[i] === 'and') { i++; e = and(e, primary()); } return e; };
+  const orExpr = () => { let e = andExpr(); while (toks[i] === 'or') { i++; e = or(e, andExpr()); } return e; };
+  return orExpr();
+}
+
+test('prompt text means exactly what the game grades', () => {
+  const next = N.createGenerator(N.makeRng(23));
+  for (let level = 0; level < N.LEVELS.length; level++) {
+    for (let i = 0; i < 1000; i++) {
+      const e = next(level);
+      const text = toText(e);
+      assert.deepEqual([...evaluate(parse(text))].sort(), ids(e), text);
+      // "nothing" combined with "or" reads as "pressing nothing is fine", which the grading can't express.
+      assert.doesNotMatch(text, /\bor (not )*(nothing|anything)\b|\b(nothing|anything) or\b/, text);
+    }
+  }
+});
