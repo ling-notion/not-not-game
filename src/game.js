@@ -1,12 +1,20 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, atom, not, all, NOTHING, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
   const BEST_KEY = 'not-not-best';
   const HARD_KEY = 'not-not-hard';
+  const PRACTICED_KEY = 'not-not-practiced';
+  // A first normal-mode game opens with these untimed-feeling rounds: the answer glows and misses cost nothing.
+  const PRACTICE = [
+    { expr: atom('color', 'green'), hint: 'Press the green key' },
+    { expr: not(atom('color', 'red')), hint: "Any key that isn't red" },
+    { expr: NOTHING, hint: 'Press nothing. Let the timer run out' },
+    { expr: all([atom('color', 'red'), atom('color', 'blue')]), hint: 'Press both keys' },
+  ];
   // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
   // a little above the normal curve.
   // It also starts a minute into the game, skipping the warm-up levels.
@@ -36,6 +44,7 @@
     hardBadge: $('#hard-badge'),
     hardToggles: [...document.querySelectorAll('.hard-toggle:not(#help-toggle)')],
     restart: $('#restart'),
+    skipPractice: $('#skip-practice'),
     pauseNote: $('#pause-note'),
     share: $('#share'),
     sharePreview: $('#share-preview'),
@@ -76,7 +85,7 @@
   // Title card: a mini pad of the four keys, and each example's answer drawn as shapes.
   function renderTitleCard() {
     const mini = (k, size) => `<span class="mini" style="--c:${HEX[k.color]}">${shapeSvg(k.shape, HEX[k.color], size)}</span>`;
-    document.querySelector('.legend').innerHTML = KEYS.map((k) => `
+    $('.legend').innerHTML = KEYS.map((k) => `
       <div class="legend-key" style="grid-area:${k.id}">
         <span class="arrow">${k.glyph}</span>${shapeSvg(k.shape, HEX[k.color], 26)}
         <span class="label">${k.color}<br>${k.shape}</span>
@@ -86,8 +95,8 @@
         group.split('+').map((id) => mini(KEYS.find((k) => k.id === id), 18)).join('<span class="plus">+</span>')
       ).join('<span class="or">/</span>');
     });
-    // The pause card reuses the same legend and examples behind a toggle.
-    $('#pause-help').innerHTML = $('.legend').outerHTML + $('.examples').outerHTML;
+    // The pause card shows the same legend above its examples.
+    $('#pause-help').insertAdjacentHTML('afterbegin', $('.legend').outerHTML);
   }
 
   const pickOther = (exclude) => {
@@ -166,6 +175,7 @@
     lastKey: null, // key pressed in the previous round, for "last key" prompts
     skill: 0, // nudges prompt difficulty: up with each correct answer, down after a miss
     ease: 0, // rounds left of lighter prompts after a miss
+    practice: -1, // index into PRACTICE while the tutorial runs, otherwise -1
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
@@ -184,7 +194,7 @@
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
     els.streak.textContent = state.streak >= 3 ? `${state.streak} streak` : '';
-    els.level.textContent = `Level ${shownLevel()}`;
+    els.level.textContent = state.practice >= 0 ? `Practice ${state.practice + 1} of ${PRACTICE.length}` : `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
     els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
@@ -209,7 +219,9 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    let practiced = false;
+    try { practiced = localStorage.getItem(PRACTICED_KEY) === '1'; } catch (_) { /* storage unavailable */ }
+    Object.assign(state, { practice: hard || practiced ? -1 : 0, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -218,7 +230,9 @@
     document.body.classList.add('playing');
     showFeedback('', '');
     updateHud();
-    showBanner(hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
+    showBanner(hard ? 'Hard mode: all the basics are already in'
+      : state.practice >= 0 ? 'Practice: 4 quick rounds, no lives lost' : LEVELS[0].intro);
+    els.skipPractice.hidden = state.practice < 0;
     els.prompt.textContent = 'Get ready…';
     later(nextRound, 1100);
   }
@@ -227,6 +241,7 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
+    if (state.practice >= 0) { practiceRound(); return; }
     const seconds = gameSeconds();
     const level = levelFor(seconds);
     if (level > state.level) {
@@ -254,6 +269,51 @@
     renderPrompt(expr);
     renderDebug(easing);
     updateHud();
+  }
+
+  function practiceRound() {
+    const { expr, hint } = PRACTICE[state.practice];
+    const answers = evaluate(expr);
+    const limit = answers.size === 0 ? 3000 : 8000;
+    state.round = { expr, answers, needAll: needsAll(expr), pressed: new Set(), limit, deadline: performance.now() + limit, active: true, practice: true };
+    Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss', 'glow'));
+    answers.forEach((id) => els.tiles[id].classList.add('glow'));
+    showFeedback(hint, '');
+    renderPrompt(expr);
+    updateHud();
+  }
+
+  // Practice misses replay the same round; a hit moves on, and the last hit starts the real game.
+  function resolvePractice(round, correct, keyId) {
+    Object.values(els.tiles).forEach((t) => t.classList.remove('glow'));
+    if (keyId) els.tiles[keyId].classList.add(correct ? 'hit' : 'miss');
+    els.timer.style.transform = 'scaleX(0)';
+    if (!correct) {
+      window.Sound.wrong();
+      showFeedback(keyId ? 'Not that one. Try again' : 'Take your time. Try again', 'bad');
+      later(nextRound, 1100);
+      return;
+    }
+    if (keyId) window.Sound.correct(state.practice + 1); else window.Sound.correctNothing();
+    showFeedback('Correct', 'good');
+    state.practice += 1;
+    if (state.practice < PRACTICE.length) { later(nextRound, 600); return; }
+    finishPractice();
+  }
+
+  function finishPractice() {
+    state.practice = -1;
+    state.round = null;
+    try { localStorage.setItem(PRACTICED_KEY, '1'); } catch (_) { /* storage unavailable */ }
+    clearTimers();
+    Object.values(els.tiles).forEach((t) => t.classList.remove('glow', 'hit', 'miss'));
+    els.skipPractice.hidden = true;
+    updateHud();
+    showBanner("You're ready. Lives count now");
+    els.prompt.textContent = 'Get ready…';
+    showFeedback('', '');
+    // The real game's clock starts when its first round does.
+    later(() => { state.startedAt = performance.now(); state.lastKey = null; nextRound(); }, 1400);
   }
 
   function shufflePad() {
@@ -284,6 +344,12 @@
       }
     }
     round.active = false;
+    if (round.practice) {
+      const ok = round.needAll ? round.pressed.size === round.answers.size
+        : keyId === null ? round.answers.size === 0 : round.answers.has(keyId);
+      resolvePractice(round, ok, keyId);
+      return;
+    }
     // After an "and" prompt there's no single last key, so memory prompts wait a round.
     state.lastKey = round.needAll ? null : keyId;
     const pressedNothing = keyId === null;
@@ -450,6 +516,7 @@
     if (e.code === 'KeyD' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleDebug(); return; }
     // Leave other browser shortcuts (Cmd+R, Cmd+H, ...) to the browser.
     if (e.metaKey || e.ctrlKey) return;
+    if (e.code === 'KeyS' && state.practice >= 0 && !state.pausedAt) { finishPractice(); return; }
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
@@ -470,6 +537,8 @@
   els.share.addEventListener('click', () => { share(); els.share.blur(); });
   els.restart.addEventListener('pointerdown', (e) => e.stopPropagation());
   els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
+  els.skipPractice.addEventListener('pointerdown', (e) => e.stopPropagation());
+  els.skipPractice.addEventListener('click', () => { els.skipPractice.blur(); if (state.practice >= 0) finishPractice(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 

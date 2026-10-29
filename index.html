@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.28.26.4">
+  <link rel="stylesheet" href="src/style.css?v=10.28.26.5">
 </head>
 <body>
   <header class="hud">
@@ -34,6 +34,7 @@
       <div id="prompt" class="prompt" aria-live="assertive"></div>
       <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
+      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip practice <kbd>S</kbd></button>
     </div>
 
     <div class="pad" aria-label="Arrow keys">
@@ -47,17 +48,12 @@
   <section id="title-screen" class="overlay">
     <div class="card">
       <h1>Not <span class="strike">not</span> game</h1>
-      <p class="tagline">Read the rule. Press a matching key. Fast.</p>
+      <ol class="steps">
+        <li><span class="step-n">1</span>Read the rule</li>
+        <li><span class="step-n">2</span>Press any key it allows</li>
+        <li><span class="step-n">3</span>Before the bar runs out</li>
+      </ol>
       <div class="legend" aria-hidden="true"></div>
-      <ul class="examples">
-        <li><code class="c-green">green</code><span class="ex-keys" data-keys="right"></span></li>
-        <li><code>not <span class="c-red">red</span></code><span class="ex-keys" data-keys="right down left"></span></li>
-        <li><code>not not up</code><span class="ex-keys" data-keys="up"></span></li>
-        <li><code>nothing</code><span class="ex-keys"><span class="ex-icon">∅</span></span></li>
-        <li><code><span class="c-red">red</span> and <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="up+down"></span></li>
-        <li><code>last key</code><span class="ex-keys"><span class="ex-icon">↺</span></span></li>
-        <li class="wide"><code>missing: <span class="c-red">red</span> <span class="c-green">green</span> <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="left"></span></li>
-      </ul>
       <button class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
@@ -95,15 +91,25 @@
         <span class="switch" aria-hidden="true"></span>
         <span><b>Show instructions</b></span>
       </button>
-      <div id="pause-help" class="pause-help" hidden></div>
+      <div id="pause-help" class="pause-help" hidden>
+        <ul class="examples">
+            <li><code class="c-green">green</code><span class="ex-keys" data-keys="right"></span></li>
+            <li><code>not <span class="c-red">red</span></code><span class="ex-keys" data-keys="right down left"></span></li>
+            <li><code>not not up</code><span class="ex-keys" data-keys="up"></span></li>
+            <li><code>nothing</code><span class="ex-keys"><span class="ex-icon">∅</span></span></li>
+            <li><code><span class="c-red">red</span> and <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="up+down"></span></li>
+            <li><code>last key</code><span class="ex-keys"><span class="ex-icon">↺</span></span></li>
+            <li class="wide"><code>missing: <span class="c-red">red</span> <span class="c-green">green</span> <span class="c-blue">blue</span></code><span class="ex-keys" data-keys="left"></span></li>
+          </ul>
+      </div>
       <p id="pause-note" class="small pause-note"></p>
       <button id="restart" class="share" type="button">Restart (R)</button>
       <p class="hint">Press Esc or tap to resume</p>
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.28.26.4"></script>
-  <script src="src/sound.js?v=10.28.26.4"></script>
-  <script src="src/game.js?v=10.28.26.4"></script>
+  <script src="src/expressions.js?v=10.28.26.5"></script>
+  <script src="src/sound.js?v=10.28.26.5"></script>
+  <script src="src/game.js?v=10.28.26.5"></script>
 </body>
 </html>

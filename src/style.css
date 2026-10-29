@@ -187,7 +187,15 @@ body.shake .stage { animation: shake 0.3s; }
 .strike { text-decoration: line-through; color: var(--muted); }
 .rules { padding-left: 20px; color: var(--muted); }
 .rules code { color: var(--text); background: var(--panel-2); padding: 1px 6px; border-radius: 6px; }
-.tagline { margin: 0 0 16px; color: var(--muted); font-size: 17px; }
+.steps { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; font-size: 16px; }
+.steps li { display: flex; align-items: center; gap: 10px; }
+.step-n {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel-2); color: var(--accent); font-size: 13px; font-weight: 700;
+}
+.skip-practice { display: block; margin: 10px auto 0; }
+.skip-practice[hidden] { display: none; }
+.tile.glow { border-color: var(--good); animation: glow 1.2s ease-in-out infinite; }
 .legend {
   display: grid; grid-template-areas: ". up ." "left down right"; grid-template-columns: repeat(3, 76px);
   gap: 6px; justify-content: center; margin: 0 0 18px;
@@ -280,6 +288,7 @@ body.is-paused .prompt { filter: blur(14px); }
 @keyframes press { 50% { transform: scale(0.92); } }
 @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
 @keyframes banner { 0% { opacity: 0; transform: translateY(-6px); } 6%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes glow { 50% { box-shadow: 0 0 0 6px rgba(61, 220, 132, 0.25); } }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
 .debug {
