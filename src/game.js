@@ -9,7 +9,8 @@
   const HARD_KEY = 'not-not-hard';
   // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
   // a little above the normal curve.
-  const HARD = { clock: 1.6, time: 0.85, boost: 0.8 };
+  // It also starts 40 game-seconds in, skipping the single-word warm-up.
+  const HARD = { clock: 1.6, time: 0.85, boost: 0.8, start: 40 };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
@@ -154,6 +155,8 @@
   const later = (fn, ms) => state.timers.push(setTimeout(fn, ms));
   const clearTimers = () => { state.timers.forEach(clearTimeout); state.timers = []; };
   const elapsed = () => (performance.now() - state.startedAt) / 1000;
+  // Seconds on the difficulty clock, which hard mode runs faster and starts ahead.
+  const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed());
 
   function updateHud() {
     els.lives.innerHTML = Array.from({ length: START_LIVES }, (_, i) =>
@@ -183,7 +186,7 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -192,7 +195,7 @@
     document.body.classList.add('playing');
     showFeedback('', '');
     updateHud();
-    showBanner(LEVELS[0].intro);
+    showBanner(hard ? `Hard mode: starting at level ${state.level + 1}` : LEVELS[0].intro);
     els.prompt.textContent = 'Get ready…';
     later(nextRound, 1100);
   }
@@ -201,7 +204,7 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
-    const seconds = elapsed() * (state.runHard ? HARD.clock : 1);
+    const seconds = gameSeconds();
     const level = levelFor(seconds);
     if (level > state.level) {
       state.level = level;
@@ -500,7 +503,7 @@
     debugEl.hidden = !debugOn;
     if (!debugOn) return;
     const level = LEVELS[state.level];
-    const seconds = (elapsed() * (state.runHard ? HARD.clock : 1)).toFixed(1);
+    const seconds = gameSeconds().toFixed(1);
     if (!round) {
       debugEl.innerHTML = `<h2>Debug</h2><p>Level ${state.level + 1}: ${level.id}</p><p>No prompt yet</p>`;
       return;
