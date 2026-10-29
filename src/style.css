@@ -157,7 +157,8 @@ body.shake .stage { animation: shake 0.3s; }
 .timer-bar {
   height: 100%;
   width: 100%;
-  background: var(--accent);
+  background: var(--text);
+  opacity: 0.85;
   transform-origin: left center;
   transform: scaleX(0);
 }
