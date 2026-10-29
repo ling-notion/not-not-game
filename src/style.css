@@ -40,13 +40,12 @@ body.shake .stage { animation: shake 0.3s; }
 }
 .lives { font-size: 26px; letter-spacing: 4px; color: var(--bad); }
 .heart.lost { color: #3a3a4a; }
-.hud-mid { position: absolute; left: 50%; transform: translateX(-50%); }
-/* The streak hangs to the right of the level so it never shifts the level off center. */
-.streak { position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); white-space: nowrap; }
+/* Badge, level and streak are centered together as one group. */
+.hud-mid { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.streak:empty { display: none; }
 .level { color: var(--muted); font-size: 15px; }
 .streak { color: var(--accent); font-weight: 600; font-size: 15px; }
 .hard-badge {
-  position: absolute; right: calc(100% + 12px); top: 50%; transform: translateY(-50%); white-space: nowrap;
   padding: 2px 8px; line-height: 1.4; border-radius: 999px; font-size: 13px; font-weight: 700;
   color: #ffb36b; background: rgba(255, 179, 107, 0.14);
 }
@@ -255,13 +254,10 @@ kbd {
 body.is-paused .prompt { filter: blur(14px); }
 .hint { color: var(--accent); font-weight: 600; animation: pulse 1.6s ease-in-out infinite; }
 
-/* Below this width the sides would collide with a centered level, so it moves to its own row. */
+/* Below this width the sides would collide with the centered group, so it moves to its own row. */
 @media (max-width: 820px) {
   .hud { flex-wrap: wrap; row-gap: 8px; }
-  .hud-mid { position: relative; left: auto; transform: none; order: 3; width: 100%; display: flex; justify-content: center; }
-  .hud-mid .level { position: relative; }
-  .streak { left: auto; right: 16px; }
-  .hard-badge { right: auto; left: 16px; }
+  .hud-mid { position: relative; left: auto; transform: none; order: 3; width: 100%; justify-content: center; }
 }
 
 @media (max-width: 560px) {
