@@ -67,15 +67,15 @@ body.shake .stage { animation: shake 0.3s; }
 .streak.milestone { animation: streak-milestone 0.8s cubic-bezier(0.2, 1.6, 0.4, 1); }
 .combo {
   position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); pointer-events: none; white-space: nowrap; z-index: 1;
-  font-size: clamp(24px, 5vw, 44px); font-weight: 900; letter-spacing: -0.5px; opacity: 0; color: #ffb36b;
+  font-size: clamp(15px, 2.6vw, 20px); font-weight: 700; letter-spacing: 0; opacity: 0; color: #ffb36b;
 }
-.combo.tier-2 { color: #eef1ff; text-shadow: 0 0 18px rgba(185, 194, 232, 0.6); }
-.combo.tier-3 { color: #ffe27a; text-shadow: 0 0 24px rgba(255, 210, 63, 0.7); }
+.combo.tier-2 { color: #eef1ff; }
+.combo.tier-3 { color: #ffe27a; }
 .combo.tier-4 {
   background: linear-gradient(90deg, #ff5a5f, #ffd23f, #3ddc84, #4da3ff, #b18cff);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.combo.show { animation: combo-burst 1.4s ease-out forwards; }
+.combo.show { animation: combo-burst 1.8s ease-out forwards; }
 .hard-badge {
   padding: 2px 8px; line-height: 1.4; border-radius: 999px; font-size: 13px; font-weight: 700;
   color: #ffb36b; background: rgba(255, 179, 107, 0.14);
@@ -327,13 +327,12 @@ body.is-paused .prompt { filter: blur(14px); }
 @keyframes streak-glow { 50% { box-shadow: 0 0 14px 2px rgba(255, 210, 63, 0.45); } }
 @keyframes streak-rainbow { to { background-position: 0 0, 300% 0; } }
 @keyframes streak-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
-@keyframes streak-milestone { 0% { transform: scale(1); } 30% { transform: scale(1.6) rotate(-4deg); } 60% { transform: scale(0.95) rotate(2deg); } 100% { transform: scale(1); } }
+@keyframes streak-milestone { 0% { transform: scale(1); } 35% { transform: scale(1.2); } 65% { transform: scale(0.97); } 100% { transform: scale(1); } }
 @keyframes combo-burst {
-  0% { opacity: 0; transform: translateX(-50%) scale(0.4); }
-  18% { opacity: 1; transform: translateX(-50%) scale(1.15); }
-  30% { transform: translateX(-50%) scale(1); }
-  75% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-24px) scale(1.05); }
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  15% { opacity: 0.9; transform: translateX(-50%); }
+  55% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
