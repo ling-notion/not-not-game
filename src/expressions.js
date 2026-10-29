@@ -286,6 +286,14 @@
     return found;
   }
 
+  // True when a "not" directly wraps another "not", as in "not not red".
+  function hasStackedNot(e) {
+    if (e.type === 'not') return e.e.type === 'not' || hasStackedNot(e.e);
+    if (e.type === 'or' || e.type === 'and') return hasStackedNot(e.a) || hasStackedNot(e.b);
+    if (e.type === 'all' || e.type === 'missing') return e.items.some(hasStackedNot);
+    return false;
+  }
+
   const STYLE_MECHANICS = ['symbols', 'lyingColors'];
   // The cheapest prompt that shows a mechanic, e.g. "not red" for not.
   const introCost = (id) => ({
@@ -370,7 +378,8 @@
     let lastWords = new Set(); // words used by the previous prompt
     let lastScore = null; // difficulty of the previous prompt, so no prompt jumps far above it
     const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
-    return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0 } = {}) {
+    // stackedNots: false holds back "not not ..." until the player has met a single "not".
+    return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0, stackedNots = true } = {}) {
       recentKey = previousKey;
       const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
       const has = (id) => unlocked.has(id);
@@ -431,6 +440,7 @@
         const repeatsAnswer = recentAnswers.length === 2 && recentAnswers.every((a) => a === answerKey);
         const words = wordsOf(expr);
         const reusesWord = [...words].some((w) => lastWords.has(w));
+        if (!stackedNots && hasStackedNot(expr)) continue;
         if (text === last || accidentalNothing || hasPointlessOr(expr) || repeatsFormat || repeatsAnswer || reusesWord) continue;
         last = text;
         recentFormats = [format, ...recentFormats].slice(0, RECENT_FORMATS);
@@ -458,7 +468,7 @@
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
-    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, ANYTHING, NOTHING,
+    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, hasStackedNot, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, targetDifficulty, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

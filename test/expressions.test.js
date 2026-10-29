@@ -265,3 +265,12 @@ test('no word repeats in back-to-back prompts, and no answer three times running
     });
   });
 });
+
+test('stacked nots can be held back until a single "not" has been shown', () => {
+  assert.ok(N.hasStackedNot(N.not(N.not(atom('color', 'red')))));
+  assert.ok(!N.hasStackedNot(N.not(atom('color', 'red'))));
+  const next = N.createGenerator(N.makeRng(101));
+  for (let s = 6; s < 300; s += 3) {
+    assert.ok(!N.hasStackedNot(next(N.levelFor(s), { ...CTX, seconds: s, stackedNots: false })), `stacked at ${s}s`);
+  }
+});

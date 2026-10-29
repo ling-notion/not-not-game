@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, ANYTHING, mechanicsOf, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, ANYTHING, mechanicsOf, hasStackedNot, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -20,6 +20,7 @@
   const INTROS = {
     basic: { title: 'Press the key that matches', body: 'Each arrow key has a direction, a color, and a shape. Press the one the text names.', expr: c('green') },
     not: { title: '"not" flips it', body: 'Press any key except the one named.', expr: not(c('red')) },
+    stacked: { title: 'Nots cancel out', body: 'Each "not" flips everything after it, so two of them flip it back. Work out where you land.', expr: not(not(c('red'))) },
     nothing: { title: '"nothing" means wait', body: "Don't press anything. Let the timer run out.", expr: NOTHING },
     anything: { title: '"anything" means any key', body: 'Press any key at all, before the timer runs out.', expr: ANYTHING },
     symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
@@ -316,7 +317,7 @@
     // After a miss, two rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
-    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0) });
+    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0), stackedNots: loadSeen().has('not') });
     const unseen = rulesIn(expr).filter((id) => !loadSeen().has(id));
     if (unseen.length) {
       state.heldExpr = { expr, seconds, easing };
@@ -550,11 +551,12 @@
     try { localStorage.removeItem(SEEN_KEY); } catch (_) { /* storage unavailable */ }
   }
   // Intro ids for the rules a prompt actually shows, in teaching order.
-  const RULE_ORDER = ['not', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
+  const RULE_ORDER = ['not', 'stacked', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
   function rulesIn(expr) {
     const found = mechanicsOf(expr);
     const atoms = toTokens(expr).filter((t) => t.atom).map((t) => t.atom.attr);
     found.delete('nothing');
+    if (hasStackedNot(expr)) found.add('stacked');
     if (atoms.includes('none')) found.add('nothing');
     if (atoms.includes('any')) found.add('anything');
     const style = expr.style || {};
