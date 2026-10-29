@@ -283,7 +283,6 @@
     els.intro.hidden = true;
     els.prompt.textContent = 'Get ready…';
     if (!loadSeen().has('basic')) showIntros(['basic']);
-    else showBanner(hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
     later(nextRound, 1100);
   }
 
@@ -302,7 +301,6 @@
       const id = LEVELS[level].id;
       const seen = loadSeen();
       if (LEVEL_CARDS.includes(id) && !seen.has(id)) { showIntros([id]); state.pendingRound = true; return; }
-      if (!INTROS[id] || seen.has(id)) showBanner(LEVELS[level].intro);
     }
     // Shuffle on reaching the level and every few rounds after, with a beat to re-read the pad.
     if (state.level >= SHUFFLE && (state.sinceShuffle === 0 || state.sinceShuffle >= SHUFFLE_EVERY)) {
