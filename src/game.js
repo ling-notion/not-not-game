@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -220,14 +220,11 @@
     const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level, { lastKey: state.lastKey });
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
-    // From the fade level on, some prompts vanish after a short look; easier at first, rarer later.
-    const fades = !easing && expr.style && expr.style.fade;
-    const fadeAt = fades ? now + 550 + 180 * opCount(expr) : 0;
-    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, fadeAt, active: true };
-    els.prompt.classList.remove('faded');
+    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
     renderPrompt(expr);
+    renderDebug(easing);
     updateHud();
   }
 
@@ -261,7 +258,6 @@
     round.active = false;
     // After an "and" prompt there's no single last key, so memory prompts wait a round.
     state.lastKey = round.needAll ? null : keyId;
-    els.prompt.classList.remove('faded');
     const pressedNothing = keyId === null;
     const correct = round.needAll ? round.pressed.size === round.answers.size
       : pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
@@ -373,7 +369,6 @@
       const frac = remaining / round.limit;
       els.timer.style.transform = `scaleX(${frac})`;
       els.timer.classList.toggle('low', frac < 0.3);
-      if (round.fadeAt && now >= round.fadeAt) { els.prompt.classList.add('faded'); round.fadeAt = 0; }
       if (remaining <= 0) resolve(null);
     }
     requestAnimationFrame(tick);
@@ -409,10 +404,7 @@
     if (!state.pausedAt) return;
     const pausedFor = performance.now() - state.pausedAt;
     state.startedAt += pausedFor;
-    if (state.round) {
-      state.round.deadline += pausedFor;
-      if (state.round.fadeAt) state.round.fadeAt += pausedFor;
-    }
+    if (state.round) state.round.deadline += pausedFor;
     state.pausedAt = 0;
     els.paused.hidden = true;
     document.body.classList.remove('is-paused');
@@ -424,6 +416,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
+    if (e.code === 'KeyD') { toggleDebug(); return; }
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
@@ -482,11 +475,62 @@
     els.mute.blur();
   });
 
-  // Exposes state for manual testing when the page is opened with ?debug.
-  if (/[?&]debug\b/.test(location.search)) window.__notNotState = state;
+  // Debug panel: the current prompt's difficulty breakdown against the level's cap.
+  // Shown with ?debug in the URL, and toggled with the D key.
+  const DEBUG_KEY = 'not-not-debug';
+  const debugEl = document.createElement('aside');
+  debugEl.className = 'debug';
+  document.body.appendChild(debugEl);
+  let debugOn = /[?&]debug\b/.test(location.search);
+  try { debugOn = debugOn || localStorage.getItem(DEBUG_KEY) === '1'; } catch (_) { /* storage unavailable */ }
+  const recentScores = [];
+  if (debugOn) window.__notNotState = state;
+
+  function renderDebug(easing) {
+    const round = state.round;
+    if (round && round.expr !== debugEl.lastExpr) {
+      debugEl.lastExpr = round.expr;
+      recentScores.unshift(difficulty(round.expr));
+      recentScores.length = Math.min(recentScores.length, 12);
+    }
+    debugEl.hidden = !debugOn;
+    if (!debugOn) return;
+    const level = LEVELS[state.level];
+    const seconds = (elapsed() * (state.runHard ? HARD.clock : 1)).toFixed(1);
+    if (!round) {
+      debugEl.innerHTML = `<h2>Debug</h2><p>Level ${state.level + 1}: ${level.id} (cap ${level.cap})</p><p>No prompt yet</p>`;
+      return;
+    }
+    const parts = difficultyParts(round.expr);
+    const score = difficulty(round.expr);
+    const pct = Math.min(100, (score / level.cap) * 100);
+    const keys = [...round.answers].map((id) => KEYS.find((k) => k.id === id).glyph).join(' ') || 'nothing';
+    debugEl.innerHTML = `
+      <h2>Debug <span>D to hide</span></h2>
+      <dl>
+        <dt>Level</dt><dd>${state.level + 1}: ${level.id}</dd>
+        <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
+        <dt>Score</dt><dd><b>${score.toFixed(2)}</b> / cap ${level.cap}${easing ? ' · easing' : ''}</dd>
+      </dl>
+      <div class="debug-bar"><span style="width:${pct}%"></span></div>
+      <table>${parts.map(([name, w]) => `<tr><td>${name}</td><td>${w > 0 ? '+' : ''}${w}</td></tr>`).join('')}</table>
+      <dl>
+        <dt>Answer</dt><dd>${round.needAll ? 'all of ' : ''}${keys}</dd>
+        <dt>Time</dt><dd>${(round.limit / 1000).toFixed(2)}s</dd>
+        <dt>Recent</dt><dd>${recentScores.map((n) => n.toFixed(1)).join(' ')}</dd>
+      </dl>`;
+  }
+
+  function toggleDebug() {
+    debugOn = !debugOn;
+    try { localStorage.setItem(DEBUG_KEY, debugOn ? '1' : '0'); } catch (_) { /* storage unavailable */ }
+    if (debugOn) window.__notNotState = state;
+    renderDebug(false);
+  }
 
   renderLegend();
   renderHard();
+  renderDebug(false);
   updateHud();
   els.best.textContent = best;
   requestAnimationFrame(tick);

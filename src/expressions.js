@@ -90,18 +90,17 @@
   // prompt (see difficulty()) that level may show, so heavy combinations only arrive late.
   const LEVELS = [
     { id: 'basic', at: 0, cap: 0.5, intro: 'Press the key that matches' },
-    { id: 'not', at: 5, cap: 1.5, intro: 'New: "not" means anything except' },
-    { id: 'nothing', at: 13, cap: 2.5, intro: 'New: "nothing" means don\'t press' },
-    { id: 'symbols', at: 24, cap: 3, intro: 'New: symbols instead of words' },
-    { id: 'or', at: 34, cap: 3.5, intro: 'New: "or"' },
-    { id: 'and', at: 46, cap: 4.5, intro: 'New: "and" means press every key named' },
-    { id: 'missing', at: 58, cap: 5, intro: 'New: press the one that\'s missing' },
-    { id: 'lyingColors', at: 70, cap: 6, intro: 'New: words lie about their color' },
-    { id: 'memory', at: 82, cap: 6.5, intro: 'New: "last key" means the key you just pressed' },
-    { id: 'shuffle', at: 94, cap: 7, intro: 'New: the colors and shapes swap keys' },
-    { id: 'fade', at: 106, cap: 8, intro: 'New: prompts fade, so read fast' },
-    { id: 'chaos', at: 120, cap: 9.5, intro: 'Chaos mode' },
-    { id: 'endless', at: 146, cap: 11, intro: 'Endless: it only gets faster' },
+    { id: 'not', at: 6, cap: 1.5, intro: 'New: "not" means anything except' },
+    { id: 'nothing', at: 15, cap: 2, intro: 'New: "nothing" means don\'t press' },
+    { id: 'symbols', at: 26, cap: 2.5, intro: 'New: symbols instead of words' },
+    { id: 'or', at: 38, cap: 3, intro: 'New: "or"' },
+    { id: 'and', at: 50, cap: 3.5, intro: 'New: "and" means press every key named' },
+    { id: 'lyingColors', at: 64, cap: 4, intro: 'New: words lie about their color' },
+    { id: 'memory', at: 78, cap: 4.5, intro: 'New: "last key" means the key you just pressed' },
+    { id: 'shuffle', at: 92, cap: 5, intro: 'New: the colors and shapes swap keys' },
+    { id: 'missing', at: 106, cap: 5.5, intro: 'New: press the one that\'s missing' },
+    { id: 'chaos', at: 124, cap: 7, intro: 'Chaos mode' },
+    { id: 'endless', at: 150, cap: 8.5, intro: 'Endless: it only gets faster' },
   ];
 
   // Index of the level with this id, e.g. featureLevel('shuffle').
@@ -137,7 +136,7 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
     // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1850, 1800, 1750, 1750, 1700, 1650][level];
+    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1800, 1800, 1750, 1700, 1650][level];
     const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
     // Each extra key an "and" prompt needs gets time for another press.
     const extraPresses = needsAll(expr) ? (expr.items.length - 1) * 420 : 0;
@@ -184,39 +183,54 @@
   }
 
   // How hard each mechanic is to process; a prompt's difficulty is the sum of what it uses.
+  const STYLE_MECHANICS_LIST = ['symbols', 'lyingColors'];
   const WEIGHTS = {
     word: 0.5, nothing: 1, memory: 2, not: 1, or: 1.5,
-    missing: 2.5, missingMixed: 1, and2: 2.5, and3: 4.5,
-    symbols: 0.75, lyingColors: 1.5, fade: 2,
+    missing: 5, missingMixed: 1.5, and2: 2.5, and3: 4.5,
+    symbols: 0.75, lyingColors: 1.5,
   };
 
-  function exprDifficulty(e) {
+  // Adds each mechanic's weight to `parts` as [name, weight] pairs.
+  function scoreExpr(e, parts) {
     switch (e.type) {
       case 'atom':
-        if (e.attr === 'none' || e.attr === 'any') return WEIGHTS.nothing;
-        return e.attr === 'last' ? WEIGHTS.memory : WEIGHTS.word;
-      case 'not': return WEIGHTS.not + exprDifficulty(e.e);
-      case 'or': return WEIGHTS.or + exprDifficulty(e.a) + exprDifficulty(e.b);
-      case 'missing': {
-        const mixed = new Set(e.items.map((item) => item.attr)).size > 1;
-        return WEIGHTS.missing + (mixed ? WEIGHTS.missingMixed : 0);
-      }
+        if (e.attr === 'none' || e.attr === 'any') parts.push([e.value, WEIGHTS.nothing]);
+        else if (e.attr === 'last') parts.push(['last key', WEIGHTS.memory]);
+        else parts.push(['word', WEIGHTS.word]);
+        return;
+      case 'not': parts.push(['not', WEIGHTS.not]); scoreExpr(e.e, parts); return;
+      case 'or': parts.push(['or', WEIGHTS.or]); scoreExpr(e.a, parts); scoreExpr(e.b, parts); return;
+      case 'missing':
+        parts.push(['missing', WEIGHTS.missing]);
+        if (new Set(e.items.map((item) => item.attr)).size > 1) parts.push(['mixed attributes', WEIGHTS.missingMixed]);
+        return;
       case 'all': {
+        parts.push([`and (${e.items.length} keys)`, e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3]);
         // Items cost only what they add beyond a plain word, e.g. "not not red" or "last key".
-        const extra = e.items.reduce((n, item) => n + exprDifficulty(item) - WEIGHTS.word, 0);
-        return (e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3) + extra;
+        e.items.forEach((item) => {
+          const inner = [];
+          scoreExpr(item, inner);
+          inner.filter(([name]) => name !== 'word').forEach((p) => parts.push(p));
+          if (!inner.some(([name]) => name === 'word')) parts.push(['word', -WEIGHTS.word]);
+        });
+        return;
       }
-      default: return 0;
+      default:
     }
   }
 
-  // Total difficulty of a prompt, including how it's displayed (symbols, lying colors, fading).
-  function difficulty(expr) {
+  // Each mechanic a prompt uses with its weight, including display style; sums to difficulty().
+  function difficultyParts(expr) {
+    const parts = [];
+    scoreExpr(expr, parts);
     const style = expr.style || {};
-    return exprDifficulty(expr)
-      + (style.symbols ? WEIGHTS.symbols : 0)
-      + (style.lyingColors ? WEIGHTS.lyingColors : 0)
-      + (style.fade ? WEIGHTS.fade : 0);
+    STYLE_MECHANICS_LIST.forEach((m) => { if (style[m]) parts.push([m, WEIGHTS[m]]); });
+    return parts;
+  }
+
+  // Total difficulty of a prompt, including how it's displayed (symbols, lying colors).
+  function difficulty(expr) {
+    return difficultyParts(expr).reduce((n, [, w]) => n + w, 0);
   }
 
   // Which logic mechanics a prompt uses, so a newly unlocked one can be featured.
@@ -239,7 +253,7 @@
     return found;
   }
 
-  const STYLE_MECHANICS = ['symbols', 'lyingColors', 'fade'];
+  const STYLE_MECHANICS = ['symbols', 'lyingColors'];
   const LOGIC_MECHANICS = ['not', 'nothing', 'or', 'and', 'missing', 'memory'];
 
   function createGenerator(rng = Math.random) {
@@ -304,6 +318,9 @@
     const RECENT_FORMATS = 2;
     let last = '';
     let recentFormats = [];
+    let recentAnswers = []; // answer sets of the last two prompts, e.g. "down"
+    let lastWords = new Set(); // words used by the previous prompt
+    const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
     return function next(level, { lastKey: previousKey = null } = {}) {
       recentKey = previousKey;
       const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
@@ -316,7 +333,7 @@
         const expr = candidate(has, cap);
         const style = {};
         STYLE_MECHANICS.forEach((m) => {
-          if (has(m)) style[m] = m === feature || rng() < (m === 'fade' ? 0.3 : 0.4);
+          if (has(m)) style[m] = m === feature || rng() < 0.4;
         });
         if (style.symbols && !toTokens(expr).some((t) => t.atom && (t.atom.attr === 'dir' || t.atom.attr === 'shape'))) {
           style.symbols = false;
@@ -327,7 +344,8 @@
         if (score > cap) continue;
         // Aim near the level's cap, but easy prompts still slip in now and then.
         if (score < cap * 0.6 && rng() > 0.3) continue;
-        if (feature && LOGIC_MECHANICS.includes(feature) && !mechanicsOf(expr).has(feature)) continue;
+        // The feature is a preference: drop it if other rules (e.g. no repeated formats) block it.
+        if (attempt < 100 && feature && LOGIC_MECHANICS.includes(feature) && !mechanicsOf(expr).has(feature)) continue;
 
         const text = toText(expr);
         const answers = evaluate(expr);
@@ -336,14 +354,27 @@
         // Compound formats can't repeat within the last few prompts, so the mix feels random.
         const format = formatOf(expr);
         const repeatsFormat = format !== 'x' && recentFormats.includes(format);
-        if (text === last || accidentalNothing || hasPointlessOr(expr) || repeatsFormat) continue;
+        // The same answer can't come three times running, and back-to-back prompts share no words.
+        const answerKey = [...answers].sort().join(',');
+        const repeatsAnswer = recentAnswers.length === 2 && recentAnswers.every((a) => a === answerKey);
+        const words = wordsOf(expr);
+        const reusesWord = [...words].some((w) => lastWords.has(w));
+        if (text === last || accidentalNothing || hasPointlessOr(expr) || repeatsFormat || repeatsAnswer || reusesWord) continue;
         last = text;
         recentFormats = [format, ...recentFormats].slice(0, RECENT_FORMATS);
+        recentAnswers = [answerKey, ...recentAnswers].slice(0, 2);
+        lastWords = words;
         return expr;
       }
       last = '';
       recentFormats = ['x', ...recentFormats].slice(0, RECENT_FORMATS);
-      const fallback = randomAtom();
+      const answerOf = (e) => [...evaluate(e)].sort().join(',');
+      let fallback = randomAtom();
+      while (lastWords.has(fallback.value) || (recentAnswers.length === 2 && recentAnswers.every((a) => a === answerOf(fallback)))) {
+        fallback = randomAtom();
+      }
+      lastWords = new Set([fallback.value]);
+      recentAnswers = [answerOf(fallback), ...recentAnswers].slice(0, 2);
       fallback.style = {};
       return fallback;
     };
@@ -351,7 +382,7 @@
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
-    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, mechanicsOf, ANYTHING, NOTHING,
+    atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

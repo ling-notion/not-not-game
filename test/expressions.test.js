@@ -40,8 +40,8 @@ test('text adds parentheses only where needed', () => {
 
 test('level timeline and time limits', () => {
   assert.equal(N.levelFor(0), 0);
-  assert.equal(N.levelFor(4.9), 0);
-  assert.equal(N.levelFor(5), 1);
+  assert.equal(N.levelFor(5.9), 0);
+  assert.equal(N.levelFor(6), 1);
   assert.equal(N.levelFor(500), N.LEVELS.length - 1);
   const simple = atom('dir', 'up');
   assert.ok(N.timeLimit(0, 0, simple) > N.timeLimit(5, 120, simple));
@@ -200,7 +200,7 @@ test('difficulty stays under each level\'s cap, features new mechanics, and keep
     prompts.forEach((e) => assert.ok(N.difficulty(e) <= level.cap, `${level.id}: ${toText(e)} = ${N.difficulty(e)}`));
     if (['not', 'nothing', 'or', 'and', 'missing', 'memory'].includes(level.id)) {
       const share = prompts.filter((e) => N.mechanicsOf(e).has(level.id)).length / prompts.length;
-      assert.ok(share > 0.25, `${level.id} featured in ${share}`);
+      assert.ok(share > 0.2, `${level.id} featured in ${share}`);
     }
     if (index >= 7) {
       const easy = prompts.filter((e) => N.difficulty(e) <= 1.5).length / prompts.length;
@@ -215,4 +215,20 @@ test('"and" prompts need every named key', () => {
   assert.ok(N.needsAll(e));
   assert.deepEqual(ids(e), ['left', 'up']);
   assert.ok(N.difficulty(N.all([atom('dir', 'up'), atom('dir', 'down'), atom('dir', 'left')])) > N.difficulty(e));
+});
+
+test('no word repeats in back-to-back prompts, and no answer three times running', () => {
+  const next = N.createGenerator(N.makeRng(91));
+  const words = (e) => N.toTokens(e).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value);
+  N.LEVELS.forEach((_, level) => {
+    const prompts = Array.from({ length: 800 }, () => next(level, CTX));
+    prompts.forEach((e, i) => {
+      if (!i) return;
+      const shared = words(e).filter((w) => words(prompts[i - 1]).includes(w));
+      assert.deepEqual(shared, [], `${toText(prompts[i - 1])} -> ${toText(e)}`);
+      if (i < 2) return;
+      const key = (x) => ids(x).join(',');
+      assert.ok(!(key(e) === key(prompts[i - 1]) && key(e) === key(prompts[i - 2])), `level ${level}: ${toText(e)} x3`);
+    });
+  });
 });

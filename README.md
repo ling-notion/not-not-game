@@ -38,18 +38,17 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | Time | New rule |
 | --- | --- |
 | 0s | Single words |
-| 5s | `not` |
-| 13s | `nothing`, `anything`, stacked negations |
-| 24s | Arrow and shape symbols replace some words |
-| 34s | `or` |
-| 46s | `red and blue`: press every key named, in any order |
-| 58s | `missing: red green blue`: press the key that isn't listed |
-| 70s | Words are drawn in misleading colors |
-| 82s | `last key`: the key you pressed in the previous round |
-| 94s | Shuffle: every 12 rounds the colors and shapes move to different arrows |
-| 106s | Fade: some prompts disappear after a short look |
-| 120s | Chaos: the difficulty cap rises so mechanics combine more |
-| 146s | Endless: same rules, the timer keeps shrinking |
+| 6s | `not` |
+| 15s | `nothing`, `anything`, stacked negations |
+| 26s | Arrow and shape symbols replace some words |
+| 38s | `or` |
+| 50s | `red and blue`: press every key named, in any order |
+| 64s | Words are drawn in misleading colors |
+| 78s | `last key`: the key you pressed in the previous round |
+| 92s | Shuffle: every 12 rounds the colors and shapes move to different arrows |
+| 106s | `missing: red green blue`: press the key that isn't listed |
+| 124s | Chaos: the difficulty cap rises so mechanics combine more |
+| 150s | Endless: same rules, the timer keeps shrinking |
 
 Each level unlocks a mechanic and raises a difficulty cap. Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS` in `src/expressions.js`). Prompts over the cap are rejected. Most prompts land near the cap, but easy ones still slip in now and then, and half the prompts at a new level feature its new mechanic.
 
