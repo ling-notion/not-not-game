@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, ANYTHING, mechanicsOf, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -15,11 +15,13 @@
   const NORMAL_CLOCK = 1.2;
   // Each mechanic is explained once per player, the first time a game reaches it.
   const SEEN_KEY = 'not-not-seen';
+  const LEVEL_CARDS = ['shuffle', 'chaos', 'endless'];
   const c = (color) => atom('color', color);
   const INTROS = {
     basic: { title: 'Press the key that matches', body: 'Each arrow key has a direction, a color, and a shape. Press the one the text names.', expr: c('green') },
     not: { title: '"not" flips it', body: 'Press any key except the one named.', expr: not(c('red')) },
     nothing: { title: '"nothing" means wait', body: "Don't press anything. Let the timer run out.", expr: NOTHING },
+    anything: { title: '"anything" means any key', body: 'Press any key at all, before the timer runs out.', expr: ANYTHING },
     symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
     or: { title: '"or" gives you a choice', body: 'Either key works.', expr: or(c('red'), c('blue')) },
     and: { title: '"and" means press them all', body: 'Press every key named, in any order.', expr: all([c('red'), c('blue')]) },
@@ -147,6 +149,8 @@
     els.prompt.classList.add('pop');
   }
 
+  // Until the lying-colors card has been read, only color words lie, so its first prompt is the one that shows it.
+  const lieAnywhere = () => loadSeen().has('lyingColors');
   function renderToken(t, style, asSymbol) {
     if (t.kind !== 'atom') return `<span class="${t.kind}">${t.text}</span>`;
     const { attr, value } = t.atom;
@@ -155,12 +159,12 @@
       return `<span class="atom symbol">${key.glyph}</span>`;
     }
     if (asSymbol && attr === 'shape') {
-      const fill = style.lyingColors ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
+      const fill = style.lyingColors && lieAnywhere() ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
       return `<span class="atom symbol">${shapeSvg(value, fill, 44)}</span>`;
     }
     let color = '#f4f4f8';
     if (style.lyingColors && attr === 'color') color = HEX[pickOther(value)];
-    else if (style.lyingColors && Math.random() < 0.4) color = HEX[pickOther()];
+    else if (style.lyingColors && lieAnywhere() && Math.random() < 0.4) color = HEX[pickOther()];
     return `<span class="atom" style="color:${color}">${t.text}</span>`;
   }
 
@@ -268,7 +272,7 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { introQueue: [], phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, nemesis: null, runHard: hard });
+    Object.assign(state, { introQueue: [], phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, heldExpr: null, bestStreak: 0, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -279,9 +283,7 @@
     updateHud();
     els.intro.hidden = true;
     els.prompt.textContent = 'Get ready…';
-    // Hard mode starts mid-game, so it explains any earlier mechanic this player hasn't met.
-    const unseen = unseenUpTo(state.level, 0);
-    if (unseen.length) showIntros(unseen);
+    if (!loadSeen().has('basic')) showIntros(['basic']);
     else showBanner(hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
     later(nextRound, 1100);
   }
@@ -290,14 +292,18 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
+    // A prompt held back behind its intro cards plays as soon as they're read.
+    if (state.heldExpr) { const held = state.heldExpr; state.heldExpr = null; startRound(held.expr, held.seconds, held.easing); return; }
     const seconds = gameSeconds();
     const level = levelFor(seconds);
     if (level > state.level) {
-      const unseen = unseenUpTo(level, state.level + 1);
       state.level = level;
       window.Sound.levelUp();
-      if (unseen.length) { showIntros(unseen); state.pendingRound = true; return; }
-      showBanner(LEVELS[level].intro);
+      // Level-wide changes get their card now; prompt rules get theirs when a prompt first uses them.
+      const id = LEVELS[level].id;
+      const seen = loadSeen();
+      if (LEVEL_CARDS.includes(id) && !seen.has(id)) { showIntros([id]); state.pendingRound = true; return; }
+      if (!INTROS[id] || seen.has(id)) showBanner(LEVELS[level].intro);
     }
     // Shuffle on reaching the level and every few rounds after, with a beat to re-read the pad.
     if (state.level >= SHUFFLE && (state.sinceShuffle === 0 || state.sinceShuffle >= SHUFFLE_EVERY)) {
@@ -311,6 +317,17 @@
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
     const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0) });
+    const unseen = rulesIn(expr).filter((id) => !loadSeen().has(id));
+    if (unseen.length) {
+      state.heldExpr = { expr, seconds, easing };
+      state.pendingRound = true;
+      showIntros(unseen);
+      return;
+    }
+    startRound(expr, seconds, easing);
+  }
+
+  function startRound(expr, seconds, easing) {
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
     state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true };
@@ -532,10 +549,20 @@
   function resetSeen() {
     try { localStorage.removeItem(SEEN_KEY); } catch (_) { /* storage unavailable */ }
   }
-  // Ids of levels from..to (inclusive) that have an intro this player hasn't seen yet.
-  function unseenUpTo(to, from) {
-    const seen = loadSeen();
-    return LEVELS.slice(from, to + 1).map((l) => l.id).filter((id) => INTROS[id] && !seen.has(id));
+  // Intro ids for the rules a prompt actually shows, in teaching order.
+  const RULE_ORDER = ['not', 'nothing', 'anything', 'symbols', 'or', 'and', 'lyingColors', 'memory', 'missing'];
+  function rulesIn(expr) {
+    const found = mechanicsOf(expr);
+    const atoms = toTokens(expr).filter((t) => t.atom).map((t) => t.atom.attr);
+    found.delete('nothing');
+    if (atoms.includes('none')) found.add('nothing');
+    if (atoms.includes('any')) found.add('anything');
+    const style = expr.style || {};
+    // Symbols only render on direction or shape words.
+    if (style.symbols && atoms.some((a) => a === 'dir' || a === 'shape')) found.add('symbols');
+    // A lie is only guaranteed on a color word; on other words it's left to chance.
+    if (style.lyingColors && atoms.includes('color')) found.add('lyingColors');
+    return RULE_ORDER.filter((id) => found.has(id));
   }
 
   // Intro cards hold the game clock like a pause; the last one resumes play.
