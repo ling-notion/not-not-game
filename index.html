@@ -23,7 +23,6 @@
         <span class="best-label">Best <span id="hud-best">0</span></span>
       </div>
       <button id="pause" class="mute" type="button" aria-label="Pause">Pause</button>
-      <button id="hard" class="mute" type="button" aria-pressed="false" title="Faster difficulty ramp and shorter timer">Hard: off</button>
       <button id="mute" class="mute" type="button" aria-pressed="false">Sound: on</button>
     </div>
   </header>
@@ -55,8 +54,12 @@
         <li><code>not not up</code> → press up</li>
         <li><code>nothing</code> → don't press anything</li>
       </ul>
+      <button class="hard-toggle" type="button" role="switch" aria-checked="false">
+        <span class="switch" aria-hidden="true"></span>
+        <span><b>Hard mode</b> <span class="small">faster ramp, shorter timer · H</span></span>
+      </button>
       <p class="hint">Press any arrow key or tap to start</p>
-      <p class="small">Esc pauses. On a phone, tap the four tiles. Want more? Turn on Hard mode in the top bar.</p>
+      <p class="small">Esc pauses. On a phone, tap the four tiles.</p>
     </div>
   </section>
 
@@ -68,6 +71,10 @@
       <pre id="share-preview" class="share-preview"></pre>
       <button id="share" class="share" type="button">Share result</button>
       <span id="share-status" class="share-status" aria-live="polite"></span>
+      <button class="hard-toggle" type="button" role="switch" aria-checked="false">
+        <span class="switch" aria-hidden="true"></span>
+        <span><b>Hard mode</b> <span class="small">faster ramp, shorter timer · H</span></span>
+      </button>
       <p class="hint">Press any arrow key or tap to play again</p>
     </div>
   </section>

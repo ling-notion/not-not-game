@@ -29,7 +29,7 @@
     finalScore: $('#final-score'),
     best: $('#best-score'),
     mute: $('#mute'),
-    hard: $('#hard'),
+    hardToggles: [...document.querySelectorAll('.hard-toggle')],
     share: $('#share'),
     sharePreview: $('#share-preview'),
     shareStatus: $('#share-status'),
@@ -167,7 +167,6 @@
     els.title.hidden = true;
     els.over.hidden = true;
     document.body.classList.add('playing');
-    els.hard.classList.add('locked');
     showFeedback('', '');
     updateHud();
     showBanner(LEVELS[0].intro);
@@ -283,7 +282,6 @@
     state.phase = 'over';
     state.round = null;
     document.body.classList.remove('playing');
-    els.hard.classList.remove('locked');
     window.Sound.gameOver();
     if (state.score > best) {
       best = state.score;
@@ -351,6 +349,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
+    if (e.code === 'KeyH') { toggleHard(); return; }
     const key = byCode[e.code];
     if (!key) return;
     e.preventDefault();
@@ -375,24 +374,27 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   function renderHard() {
-    els.hard.textContent = hard ? 'Hard: on' : 'Hard: off';
-    els.hard.setAttribute('aria-pressed', String(hard));
-    els.hard.classList.toggle('on', hard);
+    els.hardToggles.forEach((t) => {
+      t.setAttribute('aria-checked', String(hard));
+      t.classList.toggle('on', hard);
+    });
   }
 
-  // Only switchable between games, so a run's score always reflects one setting.
-  els.hard.addEventListener('click', () => {
-    els.hard.blur();
-    if (state.phase === 'playing') {
-      showBanner('Hard mode can be changed after this game');
-      return;
-    }
+  // Lives on the title and game-over cards, so a run's score always reflects one setting.
+  function toggleHard() {
+    if (state.phase === 'playing') return;
     hard = !hard;
     try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }
     best = loadBest();
     els.best.textContent = best;
     renderHard();
     updateHud();
+  }
+
+  els.hardToggles.forEach((t) => {
+    // Stop the overlay's tap-to-start from firing when the toggle is tapped.
+    t.addEventListener('pointerdown', (e) => e.stopPropagation());
+    t.addEventListener('click', () => { toggleHard(); t.blur(); });
   });
 
   els.mute.addEventListener('click', () => {
