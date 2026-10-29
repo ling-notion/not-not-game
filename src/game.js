@@ -428,7 +428,9 @@
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
-    if (e.code === 'KeyD') { toggleDebug(); return; }
+    if (e.code === 'KeyD' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleDebug(); return; }
+    // Leave other browser shortcuts (Cmd+R, Cmd+H, ...) to the browser.
+    if (e.metaKey || e.ctrlKey) return;
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
@@ -488,13 +490,13 @@
   });
 
   // Debug panel: the current prompt's difficulty breakdown against the level's cap.
-  // Shown with ?debug in the URL, and toggled with the D key.
+  // Toggled with Cmd+D (Ctrl+D elsewhere); the choice is remembered.
   const DEBUG_KEY = 'not-not-debug';
   const debugEl = document.createElement('aside');
   debugEl.className = 'debug';
   document.body.appendChild(debugEl);
-  let debugOn = /[?&]debug\b/.test(location.search);
-  try { debugOn = debugOn || localStorage.getItem(DEBUG_KEY) === '1'; } catch (_) { /* storage unavailable */ }
+  let debugOn = false;
+  try { debugOn = localStorage.getItem(DEBUG_KEY) === '1'; } catch (_) { /* storage unavailable */ }
   const recentScores = [];
   if (debugOn) window.__notNotState = state;
 
@@ -518,7 +520,7 @@
     const pct = Math.min(100, (score / 8) * 100);
     const keys = [...round.answers].map((id) => KEYS.find((k) => k.id === id).glyph).join(' ') || 'nothing';
     debugEl.innerHTML = `
-      <h2>Debug <span>D to hide</span></h2>
+      <h2>Debug <span>⌘D to hide</span></h2>
       <dl>
         <dt>Level</dt><dd>${shownLevel()} (${level.id})</dd>
         <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
