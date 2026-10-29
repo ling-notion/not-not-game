@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.28.26.17">
+  <link rel="stylesheet" href="src/style.css?v=10.28.26.18">
 </head>
 <body>
   <header class="hud">
@@ -35,7 +35,6 @@
       <div id="prompt" class="prompt" aria-live="assertive"></div>
       <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
-      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip tutorial<kbd class="kb-only">S</kbd></button>
     </div>
 
     <div class="pad" aria-label="Arrow keys">
@@ -81,6 +80,16 @@
     </div>
   </section>
 
+  <section id="intro-screen" class="overlay intro-screen" hidden>
+    <div class="card intro-card">
+      <p id="intro-tag" class="intro-tag">New mechanic</p>
+      <h2 id="intro-title"></h2>
+      <p id="intro-body" class="intro-body"></p>
+      <div id="intro-example" class="intro-example"></div>
+      <p class="hint"><span class="kb-only">Press any key</span><span class="touch-only">Tap anywhere</span> to continue</p>
+    </div>
+  </section>
+
   <section id="pause-screen" class="overlay" hidden>
     <div class="card">
       <h1>Paused</h1>
@@ -112,8 +121,8 @@
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.28.26.17"></script>
-  <script src="src/sound.js?v=10.28.26.17"></script>
-  <script src="src/game.js?v=10.28.26.17"></script>
+  <script src="src/expressions.js?v=10.28.26.18"></script>
+  <script src="src/sound.js?v=10.28.26.18"></script>
+  <script src="src/game.js?v=10.28.26.18"></script>
 </body>
 </html>

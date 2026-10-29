@@ -1,26 +1,35 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, atom, not, all, NOTHING, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, atom, not, or, all, missing, lastKey, NOTHING, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
   const BEST_KEY = 'not-not-best';
   const HARD_KEY = 'not-not-hard';
-  const PRACTICED_KEY = 'not-not-practiced';
-  // Normal mode's difficulty clock runs a little fast, since the tutorial already covers the basics.
-  const NORMAL_CLOCK = 1.2;
-  // A first normal-mode game opens with these untimed-feeling rounds: the answer glows and misses cost nothing.
-  const PRACTICE = [
-    { expr: atom('color', 'green'), hint: 'Press the green key' },
-    { expr: not(atom('color', 'red')), hint: "Any key that isn't red" },
-    { expr: NOTHING, hint: 'Press nothing. Let the timer run out' },
-    { expr: all([atom('color', 'red'), atom('color', 'blue')]), hint: 'Press both keys' },
-  ];
   // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
   // a little above the normal curve.
   // It also starts a minute into the game, skipping the warm-up levels.
   const HARD = { clock: 1.6, time: 0.85, boost: 0.8, start: 60 };
+  // Normal mode's difficulty clock runs a little fast, since each new mechanic gets an intro card.
+  const NORMAL_CLOCK = 1.2;
+  // Each mechanic is explained once per player, the first time a game reaches it.
+  const SEEN_KEY = 'not-not-seen';
+  const c = (color) => atom('color', color);
+  const INTROS = {
+    basic: { title: 'Press the key that matches', body: 'Each arrow key has a direction, a color, and a shape. Press the one the text names.', expr: c('green') },
+    not: { title: '"not" flips it', body: 'Press any key except the one named.', expr: not(c('red')) },
+    nothing: { title: '"nothing" means wait', body: "Don't press anything. Let the timer run out.", expr: NOTHING },
+    symbols: { title: 'Symbols replace words', body: 'Arrows and shapes can appear as pictures instead of words.', expr: atom('shape', 'circle'), symbols: true },
+    or: { title: '"or" gives you a choice', body: 'Either key works.', expr: or(c('red'), c('blue')) },
+    and: { title: '"and" means press them all', body: 'Press every key named, in any order.', expr: all([c('red'), c('blue')]) },
+    lyingColors: { title: 'Colors can lie', body: 'Read the word and ignore the color it is painted in.', expr: c('green'), lying: true },
+    memory: { title: '"last key" is the key you just pressed', body: 'Press the same key you answered with last round.', icon: '↺' },
+    shuffle: { title: 'The keys shuffle', body: 'Every so often the colors and shapes swap keys. Check the pad before answering.', icon: '🔀' },
+    chaos: { title: 'Chaos mode', body: 'Everything so far, mixed together and coming faster.', icon: '🌀' },
+    missing: { title: '"missing" means the one not listed', body: 'Three keys are named. Press the fourth.', expr: missing([c('red'), c('green'), c('blue')]) },
+    endless: { title: 'Endless', body: 'From here it keeps getting harder, for as long as you last.', icon: '♾️' },
+  };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
   const byCode = Object.fromEntries(KEYS.map((k) => [k.code, k]));
@@ -47,8 +56,12 @@
     hardBadge: $('#hard-badge'),
     hardToggles: [...document.querySelectorAll('.hard-toggle:not(#help-toggle)')],
     restart: $('#restart'),
-    skipPractice: $('#skip-practice'),
     titleHint: $('#title-hint'),
+    intro: $('#intro-screen'),
+    introTag: $('#intro-tag'),
+    introTitle: $('#intro-title'),
+    introBody: $('#intro-body'),
+    introExample: $('#intro-example'),
     replayTutorial: $('#replay-tutorial'),
     pauseNote: $('#pause-note'),
     share: $('#share'),
@@ -185,7 +198,7 @@
     lastKey: null, // key pressed in the previous round, for "last key" prompts
     skill: 0, // nudges prompt difficulty: up with each correct answer, down after a miss
     ease: 0, // rounds left of lighter prompts after a miss
-    practice: -1, // index into PRACTICE while the tutorial runs, otherwise -1
+    introQueue: [], // level ids whose intro cards are waiting to be read
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
@@ -204,7 +217,7 @@
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
     renderStreak();
-    els.level.textContent = state.practice >= 0 ? `Tutorial ${state.practice + 1} of ${PRACTICE.length}` : `Level ${shownLevel()}`;
+    els.level.textContent = `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
     els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
     els.hudBest.textContent = best;
@@ -250,13 +263,12 @@
     els.feedback.className = `feedback ${kind}`;
   }
 
-  // The first game is the tutorial; passing tutorial replays it on demand.
-  function startGame({ tutorial = false } = {}) {
+  function startGame() {
     clearTimers();
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { practice: tutorial || !practiced() ? 0 : -1, phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, nemesis: null, runHard: hard });
+    Object.assign(state, { introQueue: [], phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -265,11 +277,12 @@
     document.body.classList.add('playing');
     showFeedback('', '');
     updateHud();
-    showBanner(state.practice >= 0 ? 'Tutorial: 4 quick rounds, no lives lost'
-      : hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
-    els.skipPractice.hidden = state.practice < 0;
-    renderTitleHint();
+    els.intro.hidden = true;
     els.prompt.textContent = 'Get ready…';
+    // Hard mode starts mid-game, so it explains any earlier mechanic this player hasn't met.
+    const unseen = unseenUpTo(state.level, 0);
+    if (unseen.length) showIntros(unseen);
+    else showBanner(hard ? 'Hard mode: all the basics are already in' : LEVELS[0].intro);
     later(nextRound, 1100);
   }
 
@@ -277,13 +290,14 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
-    if (state.practice >= 0) { practiceRound(); return; }
     const seconds = gameSeconds();
     const level = levelFor(seconds);
     if (level > state.level) {
+      const unseen = unseenUpTo(level, state.level + 1);
       state.level = level;
-      showBanner(LEVELS[level].intro);
       window.Sound.levelUp();
+      if (unseen.length) { showIntros(unseen); state.pendingRound = true; return; }
+      showBanner(LEVELS[level].intro);
     }
     // Shuffle on reaching the level and every few rounds after, with a beat to re-read the pad.
     if (state.level >= SHUFFLE && (state.sinceShuffle === 0 || state.sinceShuffle >= SHUFFLE_EVERY)) {
@@ -307,61 +321,9 @@
     updateHud();
   }
 
-  function practiceRound() {
-    const { expr, hint } = PRACTICE[state.practice];
-    const answers = evaluate(expr);
-    const limit = answers.size === 0 ? 3000 : 8000;
-    state.round = { expr, answers, needAll: needsAll(expr), pressed: new Set(), limit, deadline: performance.now() + limit, active: true, practice: true };
-    Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss', 'glow'));
-    answers.forEach((id) => els.tiles[id].classList.add('glow'));
-    showFeedback(hint, '');
-    renderPrompt(expr);
-    updateHud();
-  }
-
-  // Practice misses replay the same round; a hit moves on, and the last hit starts the real game.
-  function resolvePractice(round, correct, keyId) {
-    Object.values(els.tiles).forEach((t) => t.classList.remove('glow'));
-    if (keyId) els.tiles[keyId].classList.add(correct ? 'hit' : 'miss');
-    els.timer.style.transform = 'scaleX(0)';
-    if (!correct) {
-      window.Sound.wrong();
-      showFeedback(keyId ? 'Not that one. Try again' : 'Take your time. Try again', 'bad');
-      later(nextRound, 1100);
-      return;
-    }
-    if (keyId) window.Sound.correct(state.practice + 1); else window.Sound.correctNothing();
-    showFeedback('Correct', 'good');
-    state.practice += 1;
-    if (state.practice < PRACTICE.length) { later(nextRound, 600); return; }
-    finishPractice();
-  }
-
-  // Finishing or skipping the tutorial returns to the start card; the player starts the real game.
-  function finishPractice() {
-    state.practice = -1;
-    state.round = null;
-    state.phase = 'title';
-    try { localStorage.setItem(PRACTICED_KEY, '1'); } catch (_) { /* storage unavailable */ }
-    clearTimers();
-    Object.values(els.tiles).forEach((t) => t.classList.remove('glow', 'hit', 'miss'));
-    els.skipPractice.hidden = true;
-    document.body.classList.remove('playing');
-    showFeedback('', '');
-    els.prompt.textContent = '';
-    renderTitleHint(true);
-    els.title.hidden = false;
-    updateHud();
-  }
-
-  const practiced = () => {
-    try { return localStorage.getItem(PRACTICED_KEY) === '1'; } catch (_) { return false; }
-  };
-  function renderTitleHint(justFinished = false) {
+  function renderTitleHint() {
     const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const press = touch ? 'Tap anywhere' : 'Press any arrow key';
-    els.titleHint.textContent = justFinished ? `Tutorial done. ${press} to start the real game`
-      : practiced() ? `${press} to start` : `${press} to start the tutorial`;
+    els.titleHint.textContent = touch ? 'Tap anywhere to start' : 'Press any arrow key to start';
   }
 
   function shufflePad() {
@@ -392,12 +354,6 @@
       }
     }
     round.active = false;
-    if (round.practice) {
-      const ok = round.needAll ? round.pressed.size === round.answers.size
-        : keyId === null ? round.answers.size === 0 : round.answers.has(keyId);
-      resolvePractice(round, ok, keyId);
-      return;
-    }
     // After an "and" prompt there's no single last key, so memory prompts wait a round.
     state.lastKey = round.needAll ? null : keyId;
     const pressedNothing = keyId === null;
@@ -563,15 +519,72 @@
     if (state.pendingRound) { state.pendingRound = false; nextRound(); }
   }
 
-  const togglePause = () => (state.pausedAt ? resume() : pause());
+  const togglePause = () => (state.introQueue.length ? advanceIntro() : state.pausedAt ? resume() : pause());
+
+  const loadSeen = () => {
+    try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); } catch (_) { return new Set(); }
+  };
+  function markSeen(id) {
+    const seen = loadSeen();
+    seen.add(id);
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (_) { /* storage unavailable */ }
+  }
+  function resetSeen() {
+    try { localStorage.removeItem(SEEN_KEY); } catch (_) { /* storage unavailable */ }
+  }
+  // Ids of levels from..to (inclusive) that have an intro this player hasn't seen yet.
+  function unseenUpTo(to, from) {
+    const seen = loadSeen();
+    return LEVELS.slice(from, to + 1).map((l) => l.id).filter((id) => INTROS[id] && !seen.has(id));
+  }
+
+  // Intro cards hold the game clock like a pause; the last one resumes play.
+  function showIntros(ids) {
+    state.introQueue = ids;
+    if (!state.pausedAt) state.pausedAt = performance.now();
+    renderIntro();
+  }
+  function renderIntro() {
+    const id = state.introQueue[0];
+    const intro = INTROS[id];
+    const fresh = loadSeen().size === 0 && id === 'basic';
+    els.introTag.textContent = fresh ? 'How to play' : 'New mechanic';
+    els.introTitle.textContent = intro.title;
+    els.introBody.textContent = intro.body;
+    els.introExample.innerHTML = intro.expr ? exampleHtml(intro) : `<div class="intro-icon">${intro.icon}</div>`;
+    els.intro.hidden = false;
+  }
+  function advanceIntro() {
+    if (!state.introQueue.length) return;
+    markSeen(state.introQueue.shift());
+    if (state.introQueue.length) { renderIntro(); return; }
+    els.intro.hidden = true;
+    resume();
+  }
+  // The example prompt, then the keys that answer it (or ∅ for "nothing").
+  function exampleHtml(intro) {
+    const text = toTokens(intro.expr).map((t) => {
+      if (t.kind !== 'atom') return `<span class="${t.kind}">${t.text}</span>`;
+      if (intro.symbols && t.atom.attr === 'shape') return shapeSvg(t.atom.value, '#e8e8ef', 30);
+      const color = intro.lying ? HEX.red : t.atom.attr === 'color' ? HEX[t.atom.value] : '#f4f4f8';
+      return `<span style="color:${color}">${t.text}</span>`;
+    }).join(' ');
+    const answers = [...evaluate(intro.expr)];
+    const keys = answers.length
+      ? answers.map((id) => { const k = KEYS.find((key) => key.id === id); return shapeSvg(k.shape, HEX[k.color], 22); })
+        .join(`<span class="or">${needsAll(intro.expr) ? '+' : '/'}</span>`)
+      : '<span class="intro-none">∅ press nothing</span>';
+    return `<div class="intro-prompt">${text}</div><div class="intro-arrow">→</div><div class="intro-keys">${keys}</div>`;
+  }
 
   document.addEventListener('keydown', (e) => {
+    // While an intro card is up, any plain key moves on.
+    if (state.introQueue.length && !e.metaKey && !e.ctrlKey) { e.preventDefault(); if (!e.repeat) advanceIntro(); return; }
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
     if (e.code === 'KeyD' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleDebug(); return; }
     // Leave other browser shortcuts (Cmd+R, Cmd+H, ...) to the browser.
     if (e.metaKey || e.ctrlKey) return;
-    if (e.code === 'KeyS' && state.practice >= 0 && !state.pausedAt) { finishPractice(); return; }
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
@@ -592,10 +605,9 @@
   els.share.addEventListener('click', () => { share(); els.share.blur(); });
   els.restart.addEventListener('pointerdown', (e) => e.stopPropagation());
   els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
-  els.skipPractice.addEventListener('pointerdown', (e) => e.stopPropagation());
-  els.skipPractice.addEventListener('click', () => { els.skipPractice.blur(); if (state.practice >= 0) finishPractice(); });
   els.replayTutorial.addEventListener('pointerdown', (e) => e.stopPropagation());
-  els.replayTutorial.addEventListener('click', () => { els.replayTutorial.blur(); startGame({ tutorial: true }); });
+  els.replayTutorial.addEventListener('click', () => { els.replayTutorial.blur(); resetSeen(); startGame(); });
+  els.intro.addEventListener('pointerdown', (e) => { e.preventDefault(); advanceIntro(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 
