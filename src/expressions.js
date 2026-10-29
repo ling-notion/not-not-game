@@ -352,16 +352,17 @@
     // Builds a random logic expression from the unlocked mechanics, shallower as it nests.
     // Higher caps nest deeper, so late levels can actually reach their harder prompts.
     // `inOr` stops an "or" directly inside another, which reads as a near-anything list.
-    function build(has, cap, depth = 0, inOr = false) {
+    // `underNot` makes another "not" right inside a "not" rare, so chains like "not not not" stay occasional.
+    function build(has, cap, depth = 0, inOr = false, underNot = false) {
       const leafChance = Math.max(0.12, (depth === 0 ? 0.4 : depth === 1 ? 0.6 : 0.8) - cap * 0.03);
       const nodes = [];
-      if (has('not')) nodes.push(['not', 3]);
+      if (has('not')) nodes.push(['not', underNot ? 0.8 : 3]);
       if (has('or') && !inOr) nodes.push(['or', 2]);
       if (!nodes.length || depth >= 3 || rng() < leafChance) {
         return recentKey && has('memory') && rng() < 0.2 ? lastKey(recentKey) : randomAtom();
       }
       const node = weighted(nodes);
-      if (node === 'not') return not(build(has, cap, depth + 1));
+      if (node === 'not') return not(build(has, cap, depth + 1, false, true));
       return or(build(has, cap, depth + 1, true), build(has, cap, depth + 1, true));
     }
 
@@ -384,7 +385,7 @@
             if (other) { choices += 1; const attr = pick(ATTRS); return not(atom(attr, other[attr])); }
           }
           // Endless doubles the negation chance, for heavier "and" prompts.
-          return has('not') && roll > (has('endless') ? 0.6 : 0.8) ? notN(base, 2) : base;
+          return has('not') && roll > (has('endless') ? 0.8 : 0.9) ? notN(base, 2) : base;
         });
         const e = all(items);
         if (solvable(andSlots(e))) return e;
@@ -401,7 +402,7 @@
         const attr = sameAttr || pick(ATTRS);
         const item = atom(attr, k[attr]);
         if (rng() >= compound) return item;
-        return recentKey === k.id && has('memory') && rng() < 0.4 ? lastKey(k.id) : notN(item, 2);
+        return recentKey === k.id && has('memory') && rng() < 0.6 ? lastKey(k.id) : notN(item, 2);
       }));
     }
 
@@ -421,7 +422,7 @@
         if (recentKey && has('memory') && !used.has('last key') && r < 0.48) { used.add('last key'); return lastKey(recentKey); }
         return r < 0.8 ? freshAtom() : not(freshAtom());
       };
-      return notN(or(side(), side()), rng() < 0.8 ? 1 : 2);
+      return notN(or(side(), side()), rng() < 0.92 ? 1 : 2);
     }
 
     function candidate(has, cap) {
@@ -454,6 +455,7 @@
     let recentAnswers = []; // answer sets of the last two prompts, e.g. "down"
     let lastWords = new Set(); // words used by the previous prompt
     let lastScore = null; // difficulty of the previous prompt, so no prompt jumps far above it
+    let lastStacked = false; // whether the previous prompt had a "not not"; two in a row read samey
     const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
     // stackedNots: false holds back "not not ..." until the player has met a single "not".
     // target overrides the time curve; spiky lets some prompts jump well above it.
@@ -521,12 +523,14 @@
         const words = wordsOf(expr);
         const reusesWord = [...words].some((w) => lastWords.has(w));
         if (!stackedNots && hasStackedNot(expr)) continue;
+        if (lastStacked && hasStackedNot(expr) && attempt < 200) continue;
         if (text === last || accidentalNothing || hasPointlessOr(expr) || repeatsFormat || repeatsAnswer || reusesWord) continue;
         last = text;
         recentFormats = [format, ...recentFormats].slice(0, RECENT_FORMATS);
         recentAnswers = [answerKey, ...recentAnswers].slice(0, 2);
         lastWords = words;
         lastScore = score;
+        lastStacked = hasStackedNot(expr);
         return expr;
       }
       last = '';
@@ -542,6 +546,7 @@
       fallback.target = target;
       fallback.aim = aim;
       lastScore = difficulty(fallback);
+      lastStacked = false;
       return fallback;
     };
   }

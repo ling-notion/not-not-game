@@ -16,7 +16,7 @@
   const NIGHTMARE_KEY = 'not-not-nightmare';
   const NIGHTMARE_FOUND_KEY = 'not-not-nightmare-found';
   // Normal mode's difficulty clock runs a little fast, since each new mechanic gets an intro card.
-  const NORMAL_CLOCK = 1.2;
+  const NORMAL_CLOCK = 1.3;
   // Each mechanic is explained once per player, the first time a game reaches it.
   const SEEN_KEY = 'not-not-seen';
   const LEVEL_CARDS = ['shuffle'];
