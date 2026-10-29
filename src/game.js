@@ -159,6 +159,12 @@
     try { return Number(localStorage.getItem(bestKey(isHard))) || 0; } catch (_) { return 0; }
   };
   let best = loadBest();
+  // Hard mode unlocks after one finished regular game; anyone with a score already counts.
+  const UNLOCK_KEY = 'not-not-hard-unlocked';
+  let hardUnlocked = false;
+  try { hardUnlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) { /* storage unavailable */ }
+  hardUnlocked = hardUnlocked || loadBest(false) > 0 || loadBest(true) > 0;
+  if (!hardUnlocked) hard = false;
 
   const state = {
     phase: 'title', // title | playing | over
@@ -493,6 +499,12 @@
       best = state.score;
       try { localStorage.setItem(bestKey(state.runHard), String(best)); } catch (_) { /* storage unavailable */ }
     }
+    if (!state.runHard && !hardUnlocked) {
+      hardUnlocked = true;
+      try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (_) { /* storage unavailable */ }
+      renderHard();
+      els.hardToggles.forEach((t) => t.classList.add('just-unlocked'));
+    }
     els.finalScore.textContent = state.score;
     els.sharePreview.textContent = shareText();
     els.shareStatus.textContent = '';
@@ -593,12 +605,17 @@
   function renderHard() {
     els.hardToggles.forEach((t) => {
       t.setAttribute('aria-checked', String(hard));
+      t.setAttribute('aria-disabled', String(!hardUnlocked));
       t.classList.toggle('on', hard);
+      t.classList.toggle('locked', !hardUnlocked);
+      t.querySelector('b').textContent = hardUnlocked ? '🌶️ Hard mode' : '🔒 Hard mode';
+      t.querySelector('.toggle-note').textContent = hardUnlocked ? 'Unlocked, for a challenge' : 'Finish one regular game to unlock';
     });
   }
 
   // Lives on the title and game-over cards, so a run's score always reflects one setting.
   function toggleHard() {
+    if (!hardUnlocked) return;
     if (state.phase === 'playing' && !state.pausedAt) return;
     hard = !hard;
     try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }

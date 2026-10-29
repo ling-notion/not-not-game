@@ -268,6 +268,9 @@ kbd {
   font: inherit; cursor: pointer;
 }
 .hard-toggle.on { border-color: #ffb36b; }
+.hard-toggle.locked { cursor: not-allowed; opacity: 0.6; border-style: dashed; border-color: #3a3a4a; }
+.hard-toggle.locked .switch::after { background: #6a6a7a; }
+.hard-toggle.just-unlocked { animation: unlocked 1.2s ease-out 2; border-color: #ffb36b; }
 .switch {
   flex: none; position: relative; width: 40px; height: 22px; border-radius: 999px;
   background: #3a3a4a; transition: background-color 0.15s;
@@ -335,6 +338,7 @@ body.is-paused .prompt { filter: blur(14px); }
   55% { opacity: 0.9; }
   100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
+@keyframes unlocked { 50% { box-shadow: 0 0 0 4px rgba(255, 179, 107, 0.35); } }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
 .debug {
