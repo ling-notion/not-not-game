@@ -40,15 +40,15 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 0s | Single words |
 | 5s | `not` |
 | 13s | `nothing`, `anything`, stacked negations |
-| 27s | `or` |
-| 40s | `last key`: the key you pressed in the previous round |
-| 52s | Shuffle: every 6 rounds the colors and shapes move to different arrows |
-| 64s | `missing: red green blue`: press the key that isn't listed |
-| 76s | Words are drawn in misleading colors |
-| 88s | Arrow and shape symbols replace some words |
-| 100s | Fade: some prompts disappear after a short look |
-| 114s | Nested expressions and misleading symbol colors |
-| 140s | Endless: same rules, the timer keeps shrinking |
+| 24s | Arrow and shape symbols replace some words |
+| 34s | `or` |
+| 46s | `missing: red green blue`: press the key that isn't listed |
+| 58s | Words are drawn in misleading colors |
+| 70s | `last key`: the key you pressed in the previous round |
+| 82s | Shuffle: every 6 rounds the colors and shapes move to different arrows |
+| 96s | Fade: some prompts disappear after a short look |
+| 110s | Nested expressions and misleading symbol colors |
+| 136s | Endless: same rules, the timer keeps shrinking |
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 

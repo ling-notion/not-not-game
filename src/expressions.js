@@ -78,23 +78,24 @@
   }
 
   // Seconds of play at which each level begins, and the rule each level introduces.
+  // Ordered easiest to hardest: each level adds one rule, and every earlier rule keeps appearing.
   const LEVELS = [
-    { at: 0, intro: 'Press the key that matches' },
-    { at: 5, intro: 'New: "not" means anything except' },
-    { at: 13, intro: 'New: "nothing" means don\'t press' },
-    { at: 27, intro: 'New: "or"' },
-    { at: 40, intro: 'New: "last key" means the key you just pressed' },
-    { at: 52, intro: 'New: the colors and shapes swap keys', feature: 'shuffle' },
-    { at: 64, intro: 'New: press the one that\'s missing' },
-    { at: 76, intro: 'New: words lie about their color', feature: 'lyingColors' },
-    { at: 88, intro: 'New: symbols instead of words', feature: 'symbols' },
-    { at: 100, intro: 'New: prompts fade, so read fast', feature: 'fade' },
-    { at: 114, intro: 'Chaos mode', feature: 'lyingSymbols' },
-    { at: 140, intro: 'Endless: it only gets faster' },
+    { id: 'basic', at: 0, intro: 'Press the key that matches' },
+    { id: 'not', at: 5, intro: 'New: "not" means anything except' },
+    { id: 'nothing', at: 13, intro: 'New: "nothing" means don\'t press' },
+    { id: 'symbols', at: 24, intro: 'New: symbols instead of words' },
+    { id: 'or', at: 34, intro: 'New: "or"' },
+    { id: 'missing', at: 46, intro: 'New: press the one that\'s missing' },
+    { id: 'lyingColors', at: 58, intro: 'New: words lie about their color' },
+    { id: 'memory', at: 70, intro: 'New: "last key" means the key you just pressed' },
+    { id: 'shuffle', at: 82, intro: 'New: the colors and shapes swap keys' },
+    { id: 'fade', at: 96, intro: 'New: prompts fade, so read fast' },
+    { id: 'chaos', at: 110, intro: 'Chaos mode' },
+    { id: 'endless', at: 136, intro: 'Endless: it only gets faster' },
   ];
 
-  // First level index with a feature flag, e.g. featureLevel('shuffle').
-  const featureLevel = (name) => LEVELS.findIndex((l) => l.feature === name);
+  // Index of the level with this id, e.g. featureLevel('shuffle').
+  const featureLevel = (id) => LEVELS.findIndex((l) => l.id === id);
 
   // Colors and shapes can move between arrows; directions always stay with their arrow key.
   const HOME_LAYOUT = KEYS.map((k) => ({ color: k.color, shape: k.shape }));
@@ -194,50 +195,59 @@
     const notN = (e, n) => (n === 0 ? e : not(notN(e, n - 1)));
 
     // Templates grouped by the level that introduces them.
-    const TEMPLATES = [
-      [() => randomAtom()],
-      [() => not(randomAtom()), () => randomAtom()],
-      [
+    // Prompt templates per level id; a level draws from its own list and every earlier one.
+    const TEMPLATES = {
+      basic: [() => randomAtom()],
+      not: [() => not(randomAtom()), () => randomAtom()],
+      nothing: [
         () => notN(randomAtom(), 2),
         () => NOTHING,
         () => ANYTHING,
         () => not(pick([NOTHING, ANYTHING])),
         () => notN(randomAtom(), pick([1, 2, 3])),
       ],
-      [
+      // Symbols are new to read, so the prompts themselves stay short.
+      symbols: [() => randomAtom(), () => not(randomAtom()), () => notN(randomAtom(), 2)],
+      or: [
         () => or(...twoAtoms()),
         () => not(or(...twoAtoms())),
         () => or(not(randomAtom()), randomAtom()),
       ],
-      [
+      missing: [() => missingSame(), () => missingSame(), () => missingMixed()],
+      lyingColors: [
+        () => or(not(randomAtom()), not(randomAtom())),
+        () => notN(or(...twoAtoms()), 2),
+        () => notN(randomAtom(), pick([2, 3, 4])),
+      ],
+      memory: [
         () => memory(),
         () => not(memory()),
         () => or(memory(), randomAtom()),
         () => not(or(memory(), randomAtom())),
       ],
-      // Shuffle level: short prompts, since re-reading the pad is the challenge.
-      [() => randomAtom(), () => not(randomAtom()), () => or(...twoAtoms())],
-      [() => missingSame(), () => missingSame(), () => missingMixed()],
-      [
-        () => or(not(randomAtom()), not(randomAtom())),
-        () => notN(or(...twoAtoms()), 2),
+      // Re-reading the pad is the challenge, so prompts stay short.
+      shuffle: [() => randomAtom(), () => not(randomAtom()), () => or(...twoAtoms())],
+      // Remembering the prompt is the challenge, so prompts are mid-length.
+      fade: [
+        () => not(or(...twoAtoms())),
+        () => or(not(randomAtom()), randomAtom()),
+        () => notN(randomAtom(), 3),
+        () => missingSame(),
+        () => or(notN(randomAtom(), 2), not(randomAtom())),
       ],
-      [() => notN(randomAtom(), pick([2, 3, 4])), () => or(notN(randomAtom(), 2), not(randomAtom()))],
-      // Fade level: mid-length prompts, since remembering them is the challenge.
-      [() => not(or(...twoAtoms())), () => or(not(randomAtom()), randomAtom()), () => notN(randomAtom(), 3), () => missingSame()],
-      [
+      chaos: [
         () => missingMixed(),
         () => notN(or(...twoAtoms()), 3),
         () => not(or(notN(randomAtom(), 2), randomAtom())),
         () => notN(or(memory(), randomAtom()), 2),
       ],
-      [
+      endless: [
         () => missingMixed(),
         () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
         () => notN(or(...twoAtoms()), 3),
         () => not(or(notN(randomAtom(), 2), randomAtom())),
       ],
-    ];
+    };
 
     const RECENT_FORMATS = 2;
     let last = '';
@@ -250,7 +260,7 @@
         const newest = level >= 6 ? 0.4 : 0.6;
         const tier = rng() < newest ? level : Math.floor(rng() * (level + 1));
         let expr;
-        try { expr = pick(TEMPLATES[tier])(); } catch (err) { if (err === NO_MEMORY) continue; throw err; }
+        try { expr = pick(TEMPLATES[LEVELS[tier].id])(); } catch (err) { if (err === NO_MEMORY) continue; throw err; }
         const text = toText(expr);
         const answers = evaluate(expr);
         // "Press nothing" only comes from prompts that say nothing outright, never from a contradiction.

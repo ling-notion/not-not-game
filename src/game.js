@@ -11,7 +11,7 @@
   const HARD = { clock: 1.6, time: 0.85 };
   const LYING_COLORS = featureLevel('lyingColors');
   const SYMBOLS = featureLevel('symbols');
-  const LYING_SYMBOLS = featureLevel('lyingSymbols');
+  const LYING_SYMBOLS = featureLevel('chaos');
   const SHUFFLE = featureLevel('shuffle');
   const FADE = featureLevel('fade');
   const SHUFFLE_EVERY = 6; // rounds between pad shuffles once the shuffle level is reached
