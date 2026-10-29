@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.28.26.12">
+  <link rel="stylesheet" href="src/style.css?v=10.28.26.13">
 </head>
 <body>
   <header class="hud">
@@ -23,7 +23,7 @@
         <span id="score" class="score">0</span>
         <span class="best-label">Best <span id="hud-best">0</span></span>
       </div>
-      <button id="pause" class="mute" type="button" aria-label="Pause (Esc)">Pause <kbd>Esc</kbd></button>
+      <button id="pause" class="mute" type="button" aria-label="Pause (Esc)">Pause<kbd class="kb-only">Esc</kbd></button>
       <button id="mute" class="mute icon-btn" type="button" aria-pressed="false" aria-label="Mute sound"></button>
     </div>
   </header>
@@ -35,7 +35,7 @@
       <div id="prompt" class="prompt" aria-live="assertive"></div>
       <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
-      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip tutorial <kbd>S</kbd></button>
+      <button id="skip-practice" class="mute skip-practice" type="button" hidden>Skip tutorial<kbd class="kb-only">S</kbd></button>
     </div>
 
     <div class="pad" aria-label="Arrow keys">
@@ -60,7 +60,7 @@
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
       </button>
       <p id="title-hint" class="hint">Press any arrow key or tap to start</p>
-      <p class="small keys-hint"><kbd>Esc</kbd> pause <kbd>R</kbd> restart <span class="dot">·</span> tap tiles on a phone</p>
+      <p class="small keys-hint"><span class="kb-only"><kbd>Esc</kbd> pause <kbd>R</kbd> restart</span><span class="touch-only">Tap the tiles to answer. Tap Pause to pause or restart</span></p>
       <p class="small version">Version <span id="version"></span></p>
     </div>
   </section>
@@ -77,7 +77,7 @@
         <span class="switch" aria-hidden="true"></span>
         <span><b>🌶️ Hard mode</b> <span class="toggle-note">(for a challenge)</span></span>
       </button>
-      <p class="hint">Press any arrow key or tap to play again</p>
+      <p class="hint"><span class="kb-only">Press any arrow key or tap</span><span class="touch-only">Tap anywhere</span> to play again</p>
     </div>
   </section>
 
@@ -105,15 +105,15 @@
       </div>
       <p id="pause-note" class="small pause-note"></p>
       <div class="pause-actions">
-        <button id="restart" class="share" type="button">Restart (R)</button>
+        <button id="restart" class="share" type="button">Restart<span class="kb-only"> (R)</span></button>
         <button id="replay-tutorial" class="mute" type="button">Replay tutorial</button>
       </div>
-      <p class="hint">Press Esc or tap to resume</p>
+      <p class="hint"><span class="kb-only">Press Esc or tap</span><span class="touch-only">Tap anywhere</span> to resume</p>
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.28.26.12"></script>
-  <script src="src/sound.js?v=10.28.26.12"></script>
-  <script src="src/game.js?v=10.28.26.12"></script>
+  <script src="src/expressions.js?v=10.28.26.13"></script>
+  <script src="src/sound.js?v=10.28.26.13"></script>
+  <script src="src/game.js?v=10.28.26.13"></script>
 </body>
 </html>

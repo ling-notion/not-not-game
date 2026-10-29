@@ -353,8 +353,10 @@
     try { return localStorage.getItem(PRACTICED_KEY) === '1'; } catch (_) { return false; }
   };
   function renderTitleHint(justFinished = false) {
-    els.titleHint.textContent = justFinished ? "Tutorial done. Press any arrow key to start the real game"
-      : practiced() ? 'Press any arrow key or tap to start' : 'Press any arrow key or tap to start the tutorial';
+    const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const press = touch ? 'Tap anywhere' : 'Press any arrow key';
+    els.titleHint.textContent = justFinished ? `Tutorial done. ${press} to start the real game`
+      : practiced() ? `${press} to start` : `${press} to start the tutorial`;
   }
 
   function shufflePad() {

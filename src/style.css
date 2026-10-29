@@ -89,7 +89,7 @@ body.shake .stage { animation: shake 0.3s; }
 .score-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
 .score { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .best-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.mute kbd { margin: 0 0 0 4px; font-size: 10px; }
+.mute kbd { margin: 0 0 0 6px; font-size: 10px; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 9px; }
 .mute {
   background: var(--panel);
@@ -360,3 +360,10 @@ body.is-paused .prompt { filter: blur(14px); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .toggle-note { color: var(--muted); font-size: 13px; }
+
+/* Touch screens have no Esc or R, so keyboard hints give way to tap instructions. */
+.touch-only { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .kb-only { display: none !important; }
+  .touch-only { display: inline; }
+}
