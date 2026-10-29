@@ -68,19 +68,22 @@
     if (e.type === 'atom') tokens = [{ kind: 'atom', text: e.value, atom: e }];
     else if (e.type === 'all') {
       tokens = e.items.flatMap((item, i) => [...(i ? [{ kind: 'op', text: 'and' }] : []), ...toTokens(item, PRECEDENCE.or)]);
-    } else if (e.type === 'missing') tokens = [{ kind: 'op', text: 'missing:' }, ...e.items.flatMap((item) => toTokens(item))];
+    } else if (e.type === 'missing') {
+      // Commas keep multi-word items like "not not star" readable as one item.
+      tokens = [{ kind: 'op', text: 'missing:' }, ...e.items.flatMap((item, i) => [...(i ? [{ kind: 'comma', text: ',' }] : []), ...toTokens(item)])];
+    }
     else if (e.type === 'not') tokens = [{ kind: 'op', text: 'not' }, ...toTokens(e.e, prec)];
     else tokens = [...toTokens(e.a, prec), { kind: 'op', text: e.type }, ...toTokens(e.b, prec + 1)];
     if (prec < parentPrec) tokens = [{ kind: 'paren', text: '(' }, ...tokens, { kind: 'paren', text: ')' }];
     return tokens;
   }
 
-  const toText = (e) => toTokens(e).map((t) => t.text).join(' ').replace(/\( /g, '(').replace(/ \)/g, ')');
+  const toText = (e) => toTokens(e).map((t) => t.text).join(' ').replace(/\( /g, '(').replace(/ \)/g, ')').replace(/ ,/g, ',');
 
   function opCount(e) {
     if (e.type === 'atom') return 0;
     if (e.type === 'not') return 1 + opCount(e.e);
-    if (e.type === 'missing') return e.items.length - 1;
+    if (e.type === 'missing') return e.items.length - 1 + e.items.reduce((n, item) => n + opCount(item), 0);
     if (e.type === 'all') return e.items.length - 1 + e.items.reduce((n, item) => n + opCount(item), 0);
     return 1 + opCount(e.a) + opCount(e.b);
   }
@@ -149,9 +152,9 @@
 
   // The typical prompt difficulty at a point in the game: rises quickly at first, then keeps
   // climbing steadily until MAX_DIFFICULTY. Individual prompts vary around it.
-  const MAX_DIFFICULTY = 9;
+  const MAX_DIFFICULTY = 10;
   function targetDifficulty(seconds) {
-    const curve = 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.012 * Math.max(0, seconds - 150);
+    const curve = 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.008 * Math.max(0, seconds - 150);
     return Math.min(MAX_DIFFICULTY, curve);
   }
 
@@ -200,7 +203,9 @@
   // How hard each mechanic is to process; a prompt's difficulty is the sum of what it uses.
   const STYLE_MECHANICS_LIST = ['symbols', 'lyingColors'];
   const WEIGHTS = {
-    word: 0.5, nothing: 1, memory: 2, not: 1, or: 1.5,
+    // "or" makes prompts easier: more keys count as right.
+    word: 0.5, nothing: 1, memory: 2, not: 1, or: -0.5,
+    stacked: 0.3, notGroup: 1.5, stackedGroup: 0.6,
     missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5,
     symbols: 0.75, lyingColors: 1.5,
   };
@@ -213,14 +218,27 @@
         else if (e.attr === 'last') parts.push(['last key', WEIGHTS.memory]);
         else parts.push(['word', WEIGHTS.word]);
         return;
-      case 'not': parts.push(['not', WEIGHTS.not]); scoreExpr(e.e, parts); return;
+      case 'not': {
+        // Stacked nots are cheap on their own; negating a compound like "(x or y)" is what's hard.
+        let depth = 0;
+        let inner = e;
+        while (inner.type === 'not') { depth += 1; inner = inner.e; }
+        const compound = inner.type !== 'atom';
+        parts.push([compound ? 'not (group)' : 'not', compound ? WEIGHTS.notGroup : WEIGHTS.not]);
+        if (depth > 1) parts.push([`stacked not ×${depth - 1}`, (depth - 1) * (compound ? WEIGHTS.stackedGroup : WEIGHTS.stacked)]);
+        scoreExpr(inner, parts);
+        return;
+      }
       case 'or': parts.push(['or', WEIGHTS.or]); scoreExpr(e.a, parts); scoreExpr(e.b, parts); return;
       case 'missing':
-        parts.push(['missing', WEIGHTS.missing]);
-        if (new Set(e.items.map((item) => item.attr)).size > 1) parts.push(['mixed attributes', WEIGHTS.missingMixed]);
-        return;
       case 'all': {
-        parts.push([`and (${e.items.length} keys)`, e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3]);
+        if (e.type === 'missing') {
+          parts.push(['missing', WEIGHTS.missing]);
+          const attrs = new Set(e.items.map((item) => (item.type === 'atom' ? item.attr : 'compound')));
+          if (attrs.size > 1) parts.push(['mixed attributes', WEIGHTS.missingMixed]);
+        } else {
+          parts.push([`and (${e.items.length} keys)`, e.items.length === 2 ? WEIGHTS.and2 : WEIGHTS.and3]);
+        }
         // Items cost only what they add beyond a plain word, e.g. "not not red" or "last key".
         e.items.forEach((item) => {
           const inner = [];
@@ -245,7 +263,7 @@
 
   // Total difficulty of a prompt, including how it's displayed (symbols, lying colors).
   function difficulty(expr) {
-    return difficultyParts(expr).reduce((n, [, w]) => n + w, 0);
+    return Math.max(WEIGHTS.word, difficultyParts(expr).reduce((n, [, w]) => n + w, 0));
   }
 
   // Which logic mechanics a prompt uses, so a newly unlocked one can be featured.
@@ -292,17 +310,18 @@
 
     // Builds a random logic expression from the unlocked mechanics, shallower as it nests.
     // Higher caps nest deeper, so late levels can actually reach their harder prompts.
-    function build(has, cap, depth = 0) {
+    // `inOr` stops an "or" directly inside another, which reads as a near-anything list.
+    function build(has, cap, depth = 0, inOr = false) {
       const leafChance = Math.max(0.12, (depth === 0 ? 0.4 : depth === 1 ? 0.6 : 0.8) - cap * 0.03);
       const nodes = [];
       if (has('not')) nodes.push(['not', 3]);
-      if (has('or')) nodes.push(['or', 2]);
+      if (has('or') && !inOr) nodes.push(['or', 2]);
       if (!nodes.length || depth >= 3 || rng() < leafChance) {
         return recentKey && has('memory') && rng() < 0.2 ? lastKey(recentKey) : randomAtom();
       }
       const node = weighted(nodes);
       if (node === 'not') return not(build(has, cap, depth + 1));
-      return or(build(has, cap, depth + 1), build(has, cap, depth + 1));
+      return or(build(has, cap, depth + 1, true), build(has, cap, depth + 1, true));
     }
 
     // One-key items for "and" prompts: words, double negations, or the last key.
@@ -313,15 +332,23 @@
         if (recentKey === k.id && has('memory') && roll < 0.25) return lastKey(k.id);
         const word = randomAtom();
         const base = atom(word.attr, k[word.attr]);
-        return has('not') && roll > 0.8 ? notN(base, 2) : base;
+        // Endless doubles the negation chance, for heavier "and" prompts.
+        return has('not') && roll > (has('endless') ? 0.6 : 0.8) ? notN(base, 2) : base;
       });
       return all(items);
     }
 
-    function missingPrompt() {
+    // In endless, items can be compound ("not not star", "last key") for heavier prompts.
+    function missingPrompt(has) {
       const keys = shuffled(KEYS).slice(0, 3);
       const sameAttr = rng() < 0.6 ? pick(ATTRS) : null;
-      return missing(keys.map((k) => { const attr = sameAttr || pick(ATTRS); return atom(attr, k[attr]); }));
+      const compound = has('endless') ? 0.3 : 0;
+      return missing(keys.map((k) => {
+        const attr = sameAttr || pick(ATTRS);
+        const item = atom(attr, k[attr]);
+        if (rng() >= compound) return item;
+        return recentKey === k.id && has('memory') && rng() < 0.4 ? lastKey(k.id) : notN(item, 2);
+      }));
     }
 
     function candidate(has, cap) {
@@ -331,7 +358,7 @@
       if (has('nothing')) shapes.push(['nothing', 0.8]);
       const shape = weighted(shapes);
       if (shape === 'and') return andPrompt(has);
-      if (shape === 'missing') return missingPrompt();
+      if (shape === 'missing') return missingPrompt(has);
       if (shape === 'nothing') return notN(pick([NOTHING, ANYTHING]), pick([0, 0, 1, 2]));
       return build(has, cap);
     }

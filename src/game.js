@@ -93,6 +93,7 @@
       // Parentheses attach to their neighbors so they never wrap onto a line by themselves.
       if (t.kind === 'paren' && t.text === '(') { openParens += '<span class="paren">(</span>'; return; }
       if (t.kind === 'paren') { pieces[pieces.length - 1] += '<span class="paren">)</span>'; return; }
+      if (t.kind === 'comma') { pieces[pieces.length - 1] += '<span class="op">,</span>'; return; }
       pieces.push(openParens + renderToken(t, style, asSymbol.has(t)));
       openParens = '';
     });

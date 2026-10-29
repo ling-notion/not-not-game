@@ -88,14 +88,18 @@ test('"and" only joins one-key items at the top, and nothing is only said outrig
 
 // Reads prompt text back with standard precedence (not > and > or) so the parentheses can be checked.
 function parse(text) {
-  const toks = text.match(/\(|\)|[a-z]+/g);
+  const toks = text.match(/\(|\)|,|[a-z]+/g);
   let i = 0;
   const word = (w) => { const k = N.KEYS.find((k) => k.dir === w || k.color === w || k.shape === w); return atom(k.dir === w ? 'dir' : k.color === w ? 'color' : 'shape', w); };
   const primary = () => {
     const t = toks[i++];
     if (t === 'not') return not(primary());
     if (t === '(') { const e = orExpr(); i++; return e; }
-    if (t === 'missing') return N.missing([primary(), primary(), primary()]);
+    if (t === 'missing') {
+      const items = [primary()];
+      while (toks[i] === ',') { i++; items.push(primary()); }
+      return N.missing(items);
+    }
     if (t === 'nothing') return NOTHING;
     if (t === 'last') { i++; return N.lastKey(CTX.lastKey); }
     if (t === 'anything') return ANYTHING;
@@ -178,7 +182,7 @@ test('shuffling moves every color and shape to a new arrow, keeping directions',
 
 test('"missing" prompts list three distinct keys and accept only the fourth', () => {
   const m = N.missing([atom('color', 'red'), atom('shape', 'star'), atom('dir', 'down')]);
-  assert.equal(toText(m), 'missing: red star down');
+  assert.equal(toText(m), 'missing: red, star, down');
   assert.deepEqual(ids(m), ['right']);
   const next = N.createGenerator(N.makeRng(71));
   const level = N.LEVELS.findIndex((l) => l.intro.includes('missing'));
