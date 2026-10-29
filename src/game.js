@@ -30,6 +30,8 @@
     best: $('#best-score'),
     mute: $('#mute'),
     hardToggles: [...document.querySelectorAll('.hard-toggle')],
+    restart: $('#restart'),
+    pauseNote: $('#pause-note'),
     share: $('#share'),
     sharePreview: $('#share-preview'),
     shareStatus: $('#share-status'),
@@ -109,9 +111,9 @@
   let hard = false;
   try { hard = localStorage.getItem(HARD_KEY) === '1'; } catch (_) { /* storage unavailable */ }
   // Hard mode keeps its own best score so the two aren't compared directly.
-  const bestKey = () => (hard ? `${BEST_KEY}-hard` : BEST_KEY);
-  const loadBest = () => {
-    try { return Number(localStorage.getItem(bestKey())) || 0; } catch (_) { return 0; }
+  const bestKey = (isHard = hard) => (isHard ? `${BEST_KEY}-hard` : BEST_KEY);
+  const loadBest = (isHard = hard) => {
+    try { return Number(localStorage.getItem(bestKey(isHard))) || 0; } catch (_) { return 0; }
   };
   let best = loadBest();
 
@@ -130,7 +132,8 @@
     history: [], // one { level, result: 'hit' | 'miss' | 'slow' } per round
     bestStreak: 0,
     hardestSolved: null,
-    nemesis: null, // the most complex prompt the player got wrong
+    nemesis: null,
+    runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
 
@@ -162,8 +165,10 @@
   function startGame() {
     clearTimers();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], bestStreak: 0, hardestSolved: null, nemesis: null });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
+    els.pauseNote.textContent = '';
+    document.body.classList.remove('is-paused');
     els.title.hidden = true;
     els.over.hidden = true;
     document.body.classList.add('playing');
@@ -178,7 +183,7 @@
     if (state.phase !== 'playing') return;
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
-    const seconds = elapsed() * (hard ? HARD.clock : 1);
+    const seconds = elapsed() * (state.runHard ? HARD.clock : 1);
     const level = levelFor(seconds);
     if (level > state.level) {
       state.level = level;
@@ -186,7 +191,7 @@
       window.Sound.levelUp();
     }
     const expr = nextExpr(state.level);
-    const limit = timeLimit(state.level, seconds, expr) * (hard ? HARD.time : 1);
+    const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1);
     state.round = { expr, answers: evaluate(expr), limit, deadline: performance.now() + limit, active: true };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
@@ -253,7 +258,7 @@
       rows.push(`L${level + 1} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
     });
     const lines = [
-      `Not Not 🧠 ${state.score} pts · Level ${state.level + 1}${hard ? ' · 🌶️ Hard' : ''}`,
+      `Not not game 🧠 ${state.score} pts · Level ${state.level + 1}${state.runHard ? ' · 🌶️ Hard' : ''}`,
       `🔥 Best streak ${state.bestStreak}`,
       ...rows,
     ];
@@ -283,9 +288,10 @@
     state.round = null;
     document.body.classList.remove('playing');
     window.Sound.gameOver();
+    best = loadBest(state.runHard);
     if (state.score > best) {
       best = state.score;
-      try { localStorage.setItem(bestKey(), String(best)); } catch (_) { /* storage unavailable */ }
+      try { localStorage.setItem(bestKey(state.runHard), String(best)); } catch (_) { /* storage unavailable */ }
     }
     els.finalScore.textContent = state.score;
     els.sharePreview.textContent = shareText();
@@ -350,6 +356,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
+    if (e.code === 'KeyR' && state.pausedAt) { startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
     e.preventDefault();
@@ -367,6 +374,8 @@
   // Keep share interactions from also counting as a tap-to-restart on the overlay.
   [els.share, els.sharePreview].forEach((el) => el.addEventListener('pointerdown', (e) => e.stopPropagation()));
   els.share.addEventListener('click', () => { share(); els.share.blur(); });
+  els.restart.addEventListener('pointerdown', (e) => e.stopPropagation());
+  els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 
@@ -382,13 +391,14 @@
 
   // Lives on the title and game-over cards, so a run's score always reflects one setting.
   function toggleHard() {
-    if (state.phase === 'playing') return;
+    if (state.phase === 'playing' && !state.pausedAt) return;
     hard = !hard;
     try { localStorage.setItem(HARD_KEY, hard ? '1' : '0'); } catch (_) { /* storage unavailable */ }
     best = loadBest();
     els.best.textContent = best;
     renderHard();
     updateHud();
+    els.pauseNote.textContent = state.phase === 'playing' && hard !== state.runHard ? 'Applies when you restart' : '';
   }
 
   els.hardToggles.forEach((t) => {

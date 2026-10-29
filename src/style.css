@@ -207,6 +207,7 @@ body.shake .stage { animation: shake 0.3s; }
   padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer;
 }
 .share-status { margin-left: 10px; color: var(--good); font-weight: 600; }
+.pause-note { min-height: 1.2em; margin: 4px 0 12px; color: #ffb36b; }
 .small { color: var(--muted); font-size: 13px; }
 body.is-paused .prompt { filter: blur(14px); }
 .hint { color: var(--accent); font-weight: 600; animation: pulse 1.6s ease-in-out infinite; }

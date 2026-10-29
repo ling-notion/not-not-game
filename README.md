@@ -1,4 +1,4 @@
-# Not Not
+# Not not game
 
 A small browser game about reading logic under time pressure. Plain HTML, CSS, and JavaScript, no build step.
 

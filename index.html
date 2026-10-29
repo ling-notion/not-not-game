@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#12121a">
-  <title>Not Not</title>
+  <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="stylesheet" href="src/style.css">
@@ -45,7 +45,7 @@
 
   <section id="title-screen" class="overlay">
     <div class="card">
-      <h1>Not <span class="strike">Not</span></h1>
+      <h1>Not <span class="strike">not</span> game</h1>
       <p>Each arrow key has a <b>direction</b>, a <b>color</b>, and a <b>shape</b>.</p>
       <p>Read the expression and press a key that matches it before time runs out.</p>
       <ul class="rules">
@@ -56,7 +56,7 @@
       </ul>
       <button class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
-        <span><b>Hard mode</b> <span class="small">faster ramp, shorter timer · H</span></span>
+        <span><b>Hard mode</b></span>
       </button>
       <p class="hint">Press any arrow key or tap to start</p>
       <p class="small">Esc pauses. On a phone, tap the four tiles.</p>
@@ -73,7 +73,7 @@
       <span id="share-status" class="share-status" aria-live="polite"></span>
       <button class="hard-toggle" type="button" role="switch" aria-checked="false">
         <span class="switch" aria-hidden="true"></span>
-        <span><b>Hard mode</b> <span class="small">faster ramp, shorter timer · H</span></span>
+        <span><b>Hard mode</b></span>
       </button>
       <p class="hint">Press any arrow key or tap to play again</p>
     </div>
@@ -82,6 +82,12 @@
   <section id="pause-screen" class="overlay" hidden>
     <div class="card">
       <h1>Paused</h1>
+      <button class="hard-toggle" type="button" role="switch" aria-checked="false">
+        <span class="switch" aria-hidden="true"></span>
+        <span><b>Hard mode</b></span>
+      </button>
+      <p id="pause-note" class="small pause-note"></p>
+      <button id="restart" class="share" type="button">Restart (R)</button>
       <p class="hint">Press Esc or tap to resume</p>
     </div>
   </section>
