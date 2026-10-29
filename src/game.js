@@ -399,7 +399,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
-    if (e.code === 'KeyR' && state.pausedAt) { startGame(); return; }
+    if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
     const key = byCode[e.code];
     if (!key) return;
     e.preventDefault();
