@@ -205,7 +205,7 @@
   const WEIGHTS = {
     // "or" makes prompts easier: more keys count as right.
     word: 0.5, nothing: 1, memory: 2, not: 1, or: -0.5,
-    stacked: 0.3, notGroup: 1.5, stackedGroup: 0.6,
+    stacked: 0.3, notGroup: 2.5, stackedGroup: 0.6,
     missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5,
     symbols: 0.75, lyingColors: 1.5,
   };
