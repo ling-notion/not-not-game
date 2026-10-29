@@ -94,18 +94,18 @@
   function renderToken(t, level) {
     if (t.kind !== 'atom') return `<span class="${t.kind}">${t.text}</span>`;
     const { attr, value } = t.atom;
-    const useSymbol = level >= 5 && (attr === 'dir' || attr === 'shape') && Math.random() < 0.5;
+    const useSymbol = level >= 6 && (attr === 'dir' || attr === 'shape') && Math.random() < 0.5;
     if (useSymbol && attr === 'dir') {
       const key = KEYS.find((k) => k.dir === value);
       return `<span class="atom symbol">${key.glyph}</span>`;
     }
     if (useSymbol && attr === 'shape') {
-      const fill = level >= 6 ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
+      const fill = level >= 7 ? HEX[pickOther(KEYS.find((k) => k.shape === value).color)] : '#e8e8ef';
       return `<span class="atom symbol">${shapeSvg(value, fill, 44)}</span>`;
     }
     let color = '#f4f4f8';
-    if (level >= 4 && attr === 'color') color = HEX[pickOther(value)];
-    else if (level >= 4 && Math.random() < 0.4) color = HEX[pickOther()];
+    if (level >= 5 && attr === 'color') color = HEX[pickOther(value)];
+    else if (level >= 5 && Math.random() < 0.4) color = HEX[pickOther()];
     return `<span class="atom" style="color:${color}">${t.text}</span>`;
   }
 
@@ -134,6 +134,7 @@
     bestStreak: 0,
     hardestSolved: null,
     nemesis: null,
+    lastKey: null, // key pressed in the previous round, for "last key" prompts
     ease: 0, // rounds left of lighter prompts after a miss
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
@@ -169,7 +170,7 @@
   function startGame() {
     clearTimers();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -197,7 +198,7 @@
     // After a miss, two lighter rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
-    const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level);
+    const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level, { lastKey: state.lastKey });
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     state.round = { expr, answers: evaluate(expr), limit, deadline: performance.now() + limit, active: true };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
@@ -211,6 +212,7 @@
     const round = state.round;
     if (!round || !round.active) return;
     round.active = false;
+    state.lastKey = keyId;
     const pressedNothing = keyId === null;
     const correct = pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
@@ -232,7 +234,10 @@
       if (tile) tile.classList.add('miss');
       round.answers.forEach((id) => els.tiles[id].classList.add('valid'));
       window.Sound.wrong();
-      const why = round.answers.size === 0 ? 'Answer: press nothing' : pressedNothing ? 'Too slow' : 'Wrong key';
+      const memoryKey = toTokens(round.expr).find((t) => t.atom && t.atom.attr === 'last');
+      const why = round.answers.size === 0 ? 'Answer: press nothing'
+        : memoryKey ? `Last key was ${KEYS.find((k) => k.id === memoryKey.atom.key).glyph}`
+        : pressedNothing ? 'Too slow' : 'Wrong key';
       showFeedback(why, 'bad');
       document.body.classList.add('shake');
       later(() => document.body.classList.remove('shake'), 350);

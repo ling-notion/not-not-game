@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const N = require('../src/expressions.js');
 
 const { atom, not, or, and, ANYTHING, NOTHING, evaluate, toText } = N;
+// Every generator call has a previous key, so memory prompts are in the mix.
+const CTX = { lastKey: 'up' };
 const ids = (e) => [...evaluate(e)].sort();
 
 test('atoms match by direction, color, and shape', () => {
@@ -56,7 +58,7 @@ test('generator only uses introduced rules and never repeats a prompt back to ba
     prev = toText(e);
   }
   for (let level = 0; level < N.LEVELS.length; level++) {
-    for (let i = 0; i < 300; i++) evaluate(next(level));
+    for (let i = 0; i < 300; i++) evaluate(next(level, CTX));
   }
 });
 
@@ -64,7 +66,7 @@ test('"press nothing" stays occasional at high levels', () => {
   const next = N.createGenerator(N.makeRng(7));
   let nothing = 0;
   const runs = 2000;
-  for (let i = 0; i < runs; i++) if (evaluate(next(6)).size === 0) nothing++;
+  for (let i = 0; i < runs; i++) if (evaluate(next(6, CTX)).size === 0) nothing++;
   assert.ok(nothing / runs < 0.25, `nothing rate ${nothing / runs}`);
 });
 
@@ -72,7 +74,7 @@ test('generated prompts never use "and", and only say nothing outright', () => {
   const next = N.createGenerator(N.makeRng(11));
   for (let level = 0; level < N.LEVELS.length; level++) {
     for (let i = 0; i < 500; i++) {
-      const e = next(level);
+      const e = next(level, CTX);
       const text = toText(e);
       if (evaluate(e).size === 0) assert.match(text, /nothing|anything/, text);
       assert.doesNotMatch(text, /\band\b/, text);
@@ -90,6 +92,7 @@ function parse(text) {
     if (t === 'not') return not(primary());
     if (t === '(') { const e = orExpr(); i++; return e; }
     if (t === 'nothing') return NOTHING;
+    if (t === 'last') { i++; return N.lastKey(CTX.lastKey); }
     if (t === 'anything') return ANYTHING;
     return word(t);
   };
@@ -102,7 +105,7 @@ test('prompt text means exactly what the game grades', () => {
   const next = N.createGenerator(N.makeRng(23));
   for (let level = 0; level < N.LEVELS.length; level++) {
     for (let i = 0; i < 1000; i++) {
-      const e = next(level);
+      const e = next(level, CTX);
       const text = toText(e);
       assert.deepEqual([...evaluate(parse(text))].sort(), ids(e), text);
       // "nothing" combined with "or" reads as "pressing nothing is fine", which the grading can't express.
@@ -119,7 +122,7 @@ test('"or" prompts are never redundant or always-true', () => {
   const next = N.createGenerator(N.makeRng(31));
   for (let level = 0; level < N.LEVELS.length; level++) {
     for (let i = 0; i < 1000; i++) {
-      const e = next(level);
+      const e = next(level, CTX);
       assert.ok(!N.hasPointlessOr(e), toText(e));
     }
   }
@@ -129,10 +132,24 @@ test('compound formats never repeat within two prompts', () => {
   assert.equal(N.formatOf(not(not(or(atom('dir', 'up'), atom('color', 'blue'))))), 'not not ( x or x )');
   const next = N.createGenerator(N.makeRng(41));
   for (let level = 0; level < N.LEVELS.length; level++) {
-    const formats = Array.from({ length: 1000 }, () => N.formatOf(next(level)));
+    const formats = Array.from({ length: 1000 }, () => N.formatOf(next(level, CTX)));
     formats.forEach((f, i) => {
       if (f === 'x') return;
       assert.ok(f !== formats[i - 1] && f !== formats[i - 2], `level ${level}: "${f}" repeated at ${i}`);
     });
   }
+});
+
+test('"last key" prompts use the previous key and need one to exist', () => {
+  assert.deepEqual(ids(N.lastKey('left')), ['left']);
+  assert.deepEqual(ids(not(N.lastKey('left'))), ['down', 'right', 'up']);
+  const next = N.createGenerator(N.makeRng(51));
+  const memoryLevel = N.LEVELS.findIndex((l) => l.intro.includes('last key'));
+  let seen = 0;
+  for (let i = 0; i < 500; i++) {
+    assert.doesNotMatch(toText(next(memoryLevel)), /last key/);
+    const e = next(memoryLevel, { lastKey: 'down' });
+    if (toText(e).includes('last key')) seen++;
+  }
+  assert.ok(seen > 100, `memory prompts seen: ${seen}`);
 });

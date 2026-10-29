@@ -19,6 +19,8 @@
   const and = (a, b) => ({ type: 'and', a, b });
   const ANYTHING = atom('any', 'anything');
   const NOTHING = atom('none', 'nothing');
+  // "last key" means the key pressed in the previous round, resolved when the prompt is made.
+  const lastKey = (keyId) => ({ type: 'atom', attr: 'last', value: 'last key', key: keyId });
 
   // Returns the set of key ids that satisfy the expression; empty means "press nothing".
   function evaluate(e) {
@@ -26,6 +28,7 @@
       case 'atom':
         if (e.attr === 'any') return new Set(ALL_IDS);
         if (e.attr === 'none') return new Set();
+        if (e.attr === 'last') return new Set([e.key]);
         return new Set(KEYS.filter((k) => k[e.attr] === e.value).map((k) => k.id));
       case 'not': {
         const inner = evaluate(e.e);
@@ -72,10 +75,11 @@
     { at: 5, intro: 'New: "not" means anything except' },
     { at: 13, intro: 'New: "nothing" means don\'t press' },
     { at: 27, intro: 'New: "or"' },
-    { at: 40, intro: 'New: words lie about their color' },
-    { at: 55, intro: 'New: symbols instead of words' },
-    { at: 72, intro: 'Chaos mode' },
-    { at: 100, intro: 'Endless: it only gets faster' },
+    { at: 40, intro: 'New: "last key" means the key you just pressed' },
+    { at: 52, intro: 'New: words lie about their color' },
+    { at: 65, intro: 'New: symbols instead of words' },
+    { at: 82, intro: 'Chaos mode' },
+    { at: 110, intro: 'Endless: it only gets faster' },
   ];
 
   function levelFor(seconds) {
@@ -87,7 +91,7 @@
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
   function timeLimit(level, seconds, expr) {
     // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1800, 1750, 1700, 1650][level];
+    const base = [2300, 2150, 2000, 1900, 1850, 1800, 1750, 1700, 1650][level];
     const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
     return Math.max(1150, base - decay) + opCount(expr) * 260;
   }
@@ -126,7 +130,7 @@
 
   // The prompt's structure with each word blanked out, e.g. "not not (x or x)".
   function formatOf(expr) {
-    return toTokens(expr).map((t) => (t.kind === 'atom' && t.atom.attr !== 'none' && t.atom.attr !== 'any' ? 'x' : t.text)).join(' ');
+    return toTokens(expr).map((t) => (t.kind === 'atom' && !['none', 'any', 'last'].includes(t.atom.attr) ? 'x' : t.text)).join(' ');
   }
 
   function createGenerator(rng = Math.random) {
@@ -138,6 +142,10 @@
       while (b.attr === a.attr && b.value === a.value) b = randomAtom();
       return [a, b];
     };
+    // Memory templates need a previous key; without one they bail out and another template is picked.
+    let recentKey = null;
+    const NO_MEMORY = new Error('no last key');
+    const memory = () => { if (!recentKey) throw NO_MEMORY; return lastKey(recentKey); };
     const notN = (e, n) => (n === 0 ? e : not(notN(e, n - 1)));
 
     // Templates grouped by the level that introduces them.
@@ -157,11 +165,21 @@
         () => or(not(randomAtom()), randomAtom()),
       ],
       [
+        () => memory(),
+        () => not(memory()),
+        () => or(memory(), randomAtom()),
+        () => not(or(memory(), randomAtom())),
+      ],
+      [
         () => or(not(randomAtom()), not(randomAtom())),
         () => notN(or(...twoAtoms()), 2),
       ],
       [() => notN(randomAtom(), pick([2, 3, 4])), () => or(notN(randomAtom(), 2), not(randomAtom()))],
-      [() => notN(or(...twoAtoms()), 3), () => not(or(notN(randomAtom(), 2), randomAtom()))],
+      [
+        () => notN(or(...twoAtoms()), 3),
+        () => not(or(notN(randomAtom(), 2), randomAtom())),
+        () => notN(or(memory(), randomAtom()), 2),
+      ],
       [
         () => notN(or(not(randomAtom()), randomAtom()), pick([1, 2, 3])),
         () => notN(or(...twoAtoms()), 3),
@@ -172,13 +190,15 @@
     const RECENT_FORMATS = 2;
     let last = '';
     let recentFormats = [];
-    return function next(level) {
+    return function next(level, { lastKey: previousKey = null } = {}) {
+      recentKey = previousKey;
       for (let attempt = 0; attempt < 50; attempt++) {
         // Favor the newest rule, but keep mixing in everything learned so far.
         // Later levels lean less on the newest rule, so the hardest prompts stay occasional.
-        const newest = level >= 5 ? 0.4 : 0.6;
+        const newest = level >= 6 ? 0.4 : 0.6;
         const tier = rng() < newest ? level : Math.floor(rng() * (level + 1));
-        const expr = pick(TEMPLATES[tier])();
+        let expr;
+        try { expr = pick(TEMPLATES[tier])(); } catch (err) { if (err === NO_MEMORY) continue; throw err; }
         const text = toText(expr);
         const answers = evaluate(expr);
         // "Press nothing" only comes from prompts that say nothing outright, never from a contradiction.
@@ -199,7 +219,7 @@
 
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS,
-    atom, not, or, and, ANYTHING, NOTHING,
+    atom, not, or, and, lastKey, ANYTHING, NOTHING,
     evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
