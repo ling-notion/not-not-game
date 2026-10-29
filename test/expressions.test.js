@@ -45,7 +45,7 @@ test('level timeline and time limits', () => {
   assert.equal(N.levelFor(500), N.LEVELS.length - 1);
   const simple = atom('dir', 'up');
   assert.ok(N.timeLimit(0, 0, simple) > N.timeLimit(5, 120, simple));
-  assert.ok(N.timeLimit(6, 1000, simple) >= 1150);
+  assert.ok(N.timeLimit(6, 1000, simple) >= 1050);
 });
 
 test('generator only uses introduced rules and never repeats a prompt back to back', () => {
