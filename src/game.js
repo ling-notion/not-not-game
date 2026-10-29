@@ -274,7 +274,8 @@
     if (correct) {
       state.streak += 1;
       state.skill = Math.min(1.2, state.skill + 0.1);
-      state.score += (state.level + 1) + Math.floor(state.streak / 5);
+      // Points grow exponentially with the prompt's difficulty, plus a small streak bonus.
+      state.score += Math.max(1, Math.round(1.5 ** difficulty(round.expr))) + Math.floor(state.streak / 5);
       if (tile) tile.classList.add('hit');
       if (pressedNothing) window.Sound.correctNothing();
       else window.Sound.correct(state.streak);
