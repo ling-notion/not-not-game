@@ -86,21 +86,21 @@
   }
 
   // Seconds of play at which each level begins, and the rule each level introduces.
-  // Ordered easiest to hardest. Each level unlocks one mechanic; `cap` is the most difficult
-  // prompt (see difficulty()) that level may show, so heavy combinations only arrive late.
+  // Ordered easiest to hardest. Each level unlocks one mechanic; how hard prompts get is set
+  // separately by the smooth targetDifficulty() curve, so unlocking never causes a jump.
   const LEVELS = [
-    { id: 'basic', at: 0, cap: 0.5, intro: 'Press the key that matches' },
-    { id: 'not', at: 6, cap: 1.5, intro: 'New: "not" means anything except' },
-    { id: 'nothing', at: 15, cap: 2, intro: 'New: "nothing" means don\'t press' },
-    { id: 'symbols', at: 26, cap: 2.5, intro: 'New: symbols instead of words' },
-    { id: 'or', at: 38, cap: 3, intro: 'New: "or"' },
-    { id: 'and', at: 50, cap: 3.5, intro: 'New: "and" means press every key named' },
-    { id: 'lyingColors', at: 64, cap: 4, intro: 'New: words lie about their color' },
-    { id: 'memory', at: 78, cap: 4.5, intro: 'New: "last key" means the key you just pressed' },
-    { id: 'shuffle', at: 92, cap: 5, intro: 'New: the colors and shapes swap keys' },
-    { id: 'missing', at: 106, cap: 5.5, intro: 'New: press the one that\'s missing' },
-    { id: 'chaos', at: 124, cap: 7, intro: 'Chaos mode' },
-    { id: 'endless', at: 150, cap: 8.5, intro: 'Endless: it only gets faster' },
+    { id: 'basic', at: 0, intro: 'Press the key that matches' },
+    { id: 'not', at: 6, intro: 'New: "not" means anything except' },
+    { id: 'nothing', at: 15, intro: 'New: "nothing" means don\'t press' },
+    { id: 'symbols', at: 26, intro: 'New: symbols instead of words' },
+    { id: 'or', at: 38, intro: 'New: "or"' },
+    { id: 'and', at: 50, intro: 'New: "and" means press every key named' },
+    { id: 'lyingColors', at: 64, intro: 'New: words lie about their color' },
+    { id: 'memory', at: 78, intro: 'New: "last key" means the key you just pressed' },
+    { id: 'shuffle', at: 92, intro: 'New: the colors and shapes swap keys' },
+    { id: 'missing', at: 106, intro: 'New: press the one that\'s missing' },
+    { id: 'chaos', at: 124, intro: 'Chaos mode' },
+    { id: 'endless', at: 150, intro: 'Endless: it only gets faster' },
   ];
 
   // Index of the level with this id, e.g. featureLevel('shuffle').
@@ -134,14 +134,22 @@
   }
 
   // Answer window in ms: shrinks with level and time, with extra time for longer expressions.
+  // Answer window in ms: the base shrinks smoothly over time, and harder prompts get reading time.
   function timeLimit(level, seconds, expr) {
-    // Gentle steps between levels so no single level is a wall; reading time scales with length.
-    const base = [2300, 2150, 2000, 1900, 1850, 1850, 1850, 1800, 1800, 1750, 1700, 1650][level];
-    const decay = Math.max(0, seconds - LEVELS[level].at) * 4;
+    const base = 1250 + 1050 * Math.exp(-seconds / 160);
     // Each extra key an "and" prompt needs gets time for another press.
     const extraPresses = needsAll(expr) ? (expr.items.length - 1) * 420 : 0;
-    return Math.max(1150, base - decay) + opCount(expr) * 260 + extraPresses;
+    return Math.round(base + Math.max(0, difficulty(expr) - 0.5) * 230 + extraPresses);
   }
+
+  // The typical prompt difficulty at a point in the game: rises quickly at first, then levels
+  // off, with a slow climb in endless. Individual prompts vary around it.
+  function targetDifficulty(seconds) {
+    return 0.5 + 5 * (1 - Math.exp(-seconds / 110)) + 0.004 * Math.max(0, seconds - 150);
+  }
+
+  // Seconds a newly unlocked mechanic stays "new": it's featured, but in simple prompts.
+  const INTRO_SECONDS = 14;
 
   function makeRng(seed) {
     if (seed === undefined) return Math.random;
@@ -254,6 +262,12 @@
   }
 
   const STYLE_MECHANICS = ['symbols', 'lyingColors'];
+  // The cheapest prompt that shows a mechanic, e.g. "not red" for not.
+  const introCost = (id) => ({
+    not: WEIGHTS.not + WEIGHTS.word, nothing: WEIGHTS.nothing, or: WEIGHTS.or + 2 * WEIGHTS.word,
+    and: WEIGHTS.and2, missing: WEIGHTS.missing, memory: WEIGHTS.memory,
+    symbols: WEIGHTS.symbols + WEIGHTS.word, lyingColors: WEIGHTS.lyingColors + WEIGHTS.word,
+  })[id] || 1;
   const LOGIC_MECHANICS = ['not', 'nothing', 'or', 'and', 'missing', 'memory'];
 
   function createGenerator(rng = Math.random) {
@@ -321,31 +335,43 @@
     let recentAnswers = []; // answer sets of the last two prompts, e.g. "down"
     let lastWords = new Set(); // words used by the previous prompt
     const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
-    return function next(level, { lastKey: previousKey = null } = {}) {
+    return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0 } = {}) {
       recentKey = previousKey;
       const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
       const has = (id) => unlocked.has(id);
-      const { cap, id: newest } = LEVELS[level];
-      // Half the prompts at a level feature its new mechanic, so every mechanic gets tried.
-      const featurable = LOGIC_MECHANICS.includes(newest) || STYLE_MECHANICS.includes(newest);
-      const feature = featurable && rng() < 0.5 ? newest : null;
+      const target = Math.max(0.5, targetDifficulty(seconds) + skill);
+      // Each prompt aims at its own point near the target: mostly close, some breathers, a few surprises.
+      const roll = rng();
+      const aim = Math.max(0.5, roll < 0.15 ? target - 1.5 : roll < 0.88 ? target - 0.6 + rng() * 1.1 : target + 1);
+      // A mechanic unlocked moments ago is shown often but on its own, in a simple prompt.
+      const { id: newest, at } = LEVELS[level];
+      const isNew = seconds - at < INTRO_SECONDS && (LOGIC_MECHANICS.includes(newest) || STYLE_MECHANICS.includes(newest));
+      const introduceFirst = isNew && rng() < 0.6;
       for (let attempt = 0; attempt < 300; attempt++) {
-        const expr = candidate(has, cap);
+        // An introduction is a preference: other rules (like no repeated formats) can block it.
+        const introduce = introduceFirst && attempt < 100;
+        const easier = Math.max(0, attempt - (introduceFirst ? 100 : 0)) / 50;
+        const expr = candidate(has, aim + 1);
         const style = {};
         STYLE_MECHANICS.forEach((m) => {
-          if (has(m)) style[m] = m === feature || rng() < 0.4;
+          if (has(m)) style[m] = (introduce && m === newest) || (!introduce && rng() < 0.4);
         });
         if (style.symbols && !toTokens(expr).some((t) => t.atom && (t.atom.attr === 'dir' || t.atom.attr === 'shape'))) {
           style.symbols = false;
         }
         expr.style = style;
-
         const score = difficulty(expr);
-        if (score > cap) continue;
-        // Aim near the level's cap, but easy prompts still slip in now and then.
-        if (score < cap * 0.6 && rng() > 0.3) continue;
-        // The feature is a preference: drop it if other rules (e.g. no repeated formats) block it.
-        if (attempt < 100 && feature && LOGIC_MECHANICS.includes(feature) && !mechanicsOf(expr).has(feature)) continue;
+        // Never more than a step above the target; if attempts keep failing, accept easier prompts.
+        if (score > Math.max(target + 1.2, introduce ? introCost(newest) + 0.5 : 0)) continue;
+        if (introduce) {
+          const logic = LOGIC_MECHANICS.includes(newest);
+          if (logic && !mechanicsOf(expr).has(newest)) continue;
+          if (!logic && !style[newest]) continue;
+          // Introductions keep everything else minimal: the new mechanic plus at most a little.
+          if (score > introCost(newest) + 1) continue;
+        } else if (score > aim + 0.5 || score < aim - 0.6 - easier) continue;
+        expr.aim = introduce ? null : aim;
+        expr.target = target;
 
         const text = toText(expr);
         const answers = evaluate(expr);
@@ -376,6 +402,8 @@
       lastWords = new Set([fallback.value]);
       recentAnswers = [answerOf(fallback), ...recentAnswers].slice(0, 2);
       fallback.style = {};
+      fallback.target = target;
+      fallback.aim = aim;
       return fallback;
     };
   }
@@ -383,7 +411,7 @@
   const api = {
     KEYS, ALL_IDS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout,
     atom, not, or, and, all, missing, lastKey, needsAll, difficulty, difficultyParts, mechanicsOf, ANYTHING, NOTHING,
-    evaluate, hasPointlessOr, formatOf, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
+    evaluate, hasPointlessOr, formatOf, targetDifficulty, toTokens, toText, opCount, levelFor, timeLimit, makeRng, createGenerator,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.NotNot = api;

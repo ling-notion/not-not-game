@@ -1,7 +1,7 @@
 // Game loop, input handling, and rendering. Depends on window.NotNot and window.Sound.
 (function () {
   'use strict';
-  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
+  const { KEYS, COLORS, LEVELS, featureLevel, resetLayout, shuffleLayout, needsAll, difficulty, difficultyParts, targetDifficulty, evaluate, toTokens, toText, opCount, levelFor, timeLimit, createGenerator } = window.NotNot;
 
   const HEX = { red: '#ff5a5f', green: '#3ddc84', blue: '#4da3ff', yellow: '#ffd23f' };
   const START_LIVES = 3;
@@ -144,6 +144,7 @@
     nemesis: null,
     sinceShuffle: 0, // rounds played since the pad last shuffled
     lastKey: null, // key pressed in the previous round, for "last key" prompts
+    skill: 0, // nudges prompt difficulty: up with each correct answer, down after a miss
     ease: 0, // rounds left of lighter prompts after a miss
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
@@ -181,7 +182,7 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
+    Object.assign(state, { phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, bestStreak: 0, hardestSolved: null, nemesis: null, runHard: hard });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -214,10 +215,10 @@
       return;
     }
     if (state.sinceShuffle > 0) state.sinceShuffle += 1;
-    // After a miss, two lighter rounds with extra time let the player recover instead of spiralling.
+    // After a miss, two rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
-    const expr = nextExpr(easing ? Math.max(0, state.level - 2) : state.level, { lastKey: state.lastKey });
+    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill });
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
     state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true };
@@ -266,6 +267,7 @@
 
     if (correct) {
       state.streak += 1;
+      state.skill = Math.min(1.2, state.skill + 0.1);
       state.score += (state.level + 1) + Math.floor(state.streak / 5);
       if (tile) tile.classList.add('hit');
       if (pressedNothing) window.Sound.correctNothing();
@@ -277,6 +279,7 @@
       state.lives -= 1;
       state.streak = 0;
       state.ease = 2;
+      state.skill = Math.max(-1.5, Math.min(0, state.skill) - 0.8);
       if (tile) tile.classList.add('miss');
       round.answers.forEach((id) => { if (!round.pressed.has(id)) els.tiles[id].classList.add('valid'); });
       window.Sound.wrong();
@@ -498,19 +501,21 @@
     const level = LEVELS[state.level];
     const seconds = (elapsed() * (state.runHard ? HARD.clock : 1)).toFixed(1);
     if (!round) {
-      debugEl.innerHTML = `<h2>Debug</h2><p>Level ${state.level + 1}: ${level.id} (cap ${level.cap})</p><p>No prompt yet</p>`;
+      debugEl.innerHTML = `<h2>Debug</h2><p>Level ${state.level + 1}: ${level.id}</p><p>No prompt yet</p>`;
       return;
     }
     const parts = difficultyParts(round.expr);
     const score = difficulty(round.expr);
-    const pct = Math.min(100, (score / level.cap) * 100);
+    const pct = Math.min(100, (score / 8) * 100);
     const keys = [...round.answers].map((id) => KEYS.find((k) => k.id === id).glyph).join(' ') || 'nothing';
     debugEl.innerHTML = `
       <h2>Debug <span>D to hide</span></h2>
       <dl>
         <dt>Level</dt><dd>${state.level + 1}: ${level.id}</dd>
         <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
-        <dt>Score</dt><dd><b>${score.toFixed(2)}</b> / cap ${level.cap}${easing ? ' · easing' : ''}</dd>
+        <dt>Score</dt><dd><b>${score.toFixed(2)}</b>${round.expr.aim == null ? ' · new mechanic' : ` · aimed ${round.expr.aim.toFixed(2)}`}</dd>
+        <dt>Target</dt><dd>${round.expr.target.toFixed(2)} (curve ${targetDifficulty(Number(seconds)).toFixed(2)}, skill ${state.skill >= 0 ? '+' : ''}${state.skill.toFixed(1)})</dd>
+        <dt>Easing</dt><dd>${easing ? 'yes, +25% time' : 'no'}</dd>
       </dl>
       <div class="debug-bar"><span style="width:${pct}%"></span></div>
       <table>${parts.map(([name, w]) => `<tr><td>${name}</td><td>${w > 0 ? '+' : ''}${w}</td></tr>`).join('')}</table>

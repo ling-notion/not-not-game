@@ -50,7 +50,13 @@ The game gets harder as you survive, and the time limit shrinks within each leve
 | 124s | Chaos: the difficulty cap rises so mechanics combine more |
 | 150s | Endless: same rules, the timer keeps shrinking |
 
-Each level unlocks a mechanic and raises a difficulty cap. Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS` in `src/expressions.js`). Prompts over the cap are rejected. Most prompts land near the cap, but easy ones still slip in now and then, and half the prompts at a new level feature its new mechanic.
+Levels only decide which mechanics exist. How hard prompts are follows a smooth curve over time (`targetDifficulty` in `src/expressions.js`). Every prompt is built from the unlocked mechanics and scored by adding up the weights of what it uses (`WEIGHTS`). Each prompt then aims at its own point near the curve:
+- most land close to the curve
+- about 15% are breathers well below it
+- about 12% are surprises a step above it
+- nothing is ever more than about one step above it
+
+A mechanic unlocked in the last 14 seconds is featured in simple prompts on its own. A skill rating also nudges the curve: it rises slowly with correct answers and drops after a miss, so struggling players get breathing room and strong players get pushed. The answer timer also shrinks smoothly, and harder prompts get extra reading time. Open the game with `?debug` (or press D) to see each prompt's score breakdown.
 
 Longer expressions get a little extra time. Correct answers score more at higher levels, and every fifth answer in a streak adds a bonus point. Your best score is saved in the browser.
 

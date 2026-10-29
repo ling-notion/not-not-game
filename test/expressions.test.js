@@ -193,19 +193,34 @@ test('"missing" prompts list three distinct keys and accept only the fourth', ()
   assert.ok(seen > 80, `missing prompts seen: ${seen}`);
 });
 
-test('difficulty stays under each level\'s cap, features new mechanics, and keeps some easy prompts', () => {
+test('difficulty rises smoothly with time: no jumps, a few surprises, some easy prompts late', () => {
   const next = N.createGenerator(N.makeRng(81));
-  N.LEVELS.forEach((level, index) => {
-    const prompts = Array.from({ length: 1500 }, () => next(index, CTX));
-    prompts.forEach((e) => assert.ok(N.difficulty(e) <= level.cap, `${level.id}: ${toText(e)} = ${N.difficulty(e)}`));
-    if (['not', 'nothing', 'or', 'and', 'missing', 'memory'].includes(level.id)) {
-      const share = prompts.filter((e) => N.mechanicsOf(e).has(level.id)).length / prompts.length;
-      assert.ok(share > 0.2, `${level.id} featured in ${share}`);
+  let previousMedian = 0;
+  for (let seconds = 0; seconds <= 240; seconds += 10) {
+    const level = N.levelFor(seconds);
+    const scores = Array.from({ length: 500 }, () => N.difficulty(next(level, { ...CTX, seconds }))).sort((a, b) => a - b);
+    const median = scores[250];
+    const target = N.targetDifficulty(seconds);
+    // Nothing far above the curve, except a new mechanic's own simple introduction.
+    assert.ok(scores[scores.length - 1] <= Math.max(target + 1.2, 5.5), `${seconds}s max ${scores[scores.length - 1]}`);
+    // The typical prompt never drops sharply or leaps between neighboring moments.
+    assert.ok(median >= previousMedian - 0.8 && median <= previousMedian + 1.5, `${seconds}s median ${median} after ${previousMedian}`);
+    previousMedian = median;
+    if (seconds >= 140) {
+      const easy = scores.filter((n) => n <= target - 1.2).length / scores.length;
+      assert.ok(easy > 0.05, `${seconds}s easy share ${easy}`);
     }
-    if (index >= 7) {
-      const easy = prompts.filter((e) => N.difficulty(e) <= 1.5).length / prompts.length;
-      assert.ok(easy > 0.01 && easy < 0.2, `${level.id} easy share ${easy}`);
-    }
+  }
+});
+
+test('a newly unlocked mechanic is featured right away', () => {
+  const next = N.createGenerator(N.makeRng(83));
+  ['not', 'nothing', 'or', 'and', 'missing', 'memory'].forEach((id) => {
+    const level = N.LEVELS.findIndex((l) => l.id === id);
+    const seconds = N.LEVELS[level].at + 3;
+    const prompts = Array.from({ length: 400 }, () => next(level, { ...CTX, seconds }));
+    const share = prompts.filter((e) => N.mechanicsOf(e).has(id)).length / prompts.length;
+    assert.ok(share > 0.2, `${id} featured in ${share}`);
   });
 });
 
