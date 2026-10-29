@@ -205,13 +205,14 @@
   const WEIGHTS = {
     // "or" makes prompts easier: more keys count as right.
     word: 0.5, nothing: 1, memory: 2, not: 1, or: -0.5,
-    stacked: 0.3, notGroup: 2.5, stackedGroup: 0.6,
+    stacked: 0.3, notGroup: 2.5, stackedGroup: 0.6, nestedGroup: 1,
     missing: 6, missingMixed: 2, and2: 2.5, and3: 4.5,
     symbols: 0.75, lyingColors: 1.5,
   };
 
   // Adds each mechanic's weight to `parts` as [name, weight] pairs.
-  function scoreExpr(e, parts) {
+  // `inGroup` marks being inside a negated group, where another group is extra hard to track.
+  function scoreExpr(e, parts, inGroup = false) {
     switch (e.type) {
       case 'atom':
         if (e.attr === 'none' || e.attr === 'any') parts.push([e.value, WEIGHTS.nothing]);
@@ -225,11 +226,12 @@
         while (inner.type === 'not') { depth += 1; inner = inner.e; }
         const compound = inner.type !== 'atom';
         parts.push([compound ? 'not (group)' : 'not', compound ? WEIGHTS.notGroup : WEIGHTS.not]);
+        if (compound && inGroup) parts.push(['nested group', WEIGHTS.nestedGroup]);
         if (depth > 1) parts.push([`stacked not ×${depth - 1}`, (depth - 1) * (compound ? WEIGHTS.stackedGroup : WEIGHTS.stacked)]);
-        scoreExpr(inner, parts);
+        scoreExpr(inner, parts, inGroup || compound);
         return;
       }
-      case 'or': parts.push(['or', WEIGHTS.or]); scoreExpr(e.a, parts); scoreExpr(e.b, parts); return;
+      case 'or': parts.push(['or', WEIGHTS.or]); scoreExpr(e.a, parts, inGroup); scoreExpr(e.b, parts, inGroup); return;
       case 'missing':
       case 'all': {
         if (e.type === 'missing') {
@@ -359,14 +361,36 @@
       }));
     }
 
+    // Negated groups, nested two or three deep: "not (red or not (up or star))". Parentheses are
+    // what's hard to parse, so late prompts lean on these rather than piling on more nots.
+    function groupPrompt(has, cap, depth = 0, used = new Set()) {
+      const maxDepth = cap >= 10 ? 2 : 1;
+      const freshAtom = () => {
+        let a = randomAtom();
+        for (let i = 0; i < 10 && used.has(a.value); i++) a = randomAtom();
+        used.add(a.value);
+        return a;
+      };
+      const side = () => {
+        const r = rng();
+        if (depth < maxDepth && r < 0.4) return groupPrompt(has, cap, depth + 1, used);
+        if (recentKey && has('memory') && !used.has('last key') && r < 0.48) { used.add('last key'); return lastKey(recentKey); }
+        return r < 0.8 ? freshAtom() : not(freshAtom());
+      };
+      return notN(or(side(), side()), rng() < 0.8 ? 1 : 2);
+    }
+
     function candidate(has, cap) {
       const shapes = [['logic', 6]];
+      // Groups take a bigger share as prompts get harder in the late game.
+      if (has('chaos') && has('or')) shapes.push(['group', cap >= 9 ? 8 : cap >= 7 ? 5 : cap >= 5 ? 2 : 0.5]);
       if (has('and')) shapes.push(['and', 1.5]);
-      if (has('missing')) shapes.push(['missing', 1.2]);
+      if (has('missing')) shapes.push(['missing', has('endless') && cap >= 9 ? 0.6 : 1.2]);
       if (has('nothing')) shapes.push(['nothing', 0.8]);
       const shape = weighted(shapes);
       if (shape === 'and') return andPrompt(has);
       if (shape === 'missing') return missingPrompt(has);
+      if (shape === 'group') return groupPrompt(has, cap);
       if (shape === 'nothing') return notN(pick([NOTHING, ANYTHING]), pick([0, 0, 1, 2]));
       return build(has, cap);
     }
