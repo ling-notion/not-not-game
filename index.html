@@ -7,7 +7,7 @@
   <title>Not not game</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <link rel="stylesheet" href="src/style.css?v=10.29.26.11">
+  <link rel="stylesheet" href="src/style.css?v=10.29.26.13">
 </head>
 <body>
   <header class="hud">
@@ -112,8 +112,13 @@
     </div>
   </section>
 
-  <script src="src/expressions.js?v=10.29.26.11"></script>
-  <script src="src/sound.js?v=10.29.26.11"></script>
-  <script src="src/game.js?v=10.29.26.11"></script>
+  <button id="nightmare-toggle" class="nightmare-toggle" type="button" role="switch" aria-checked="false" aria-label="Nightmare mode" hidden>
+    <span class="nightmare-icon" aria-hidden="true">👹</span>
+    <span class="switch" aria-hidden="true"></span>
+  </button>
+
+  <script src="src/expressions.js?v=10.29.26.13"></script>
+  <script src="src/sound.js?v=10.29.26.13"></script>
+  <script src="src/game.js?v=10.29.26.13"></script>
 </body>
 </html>

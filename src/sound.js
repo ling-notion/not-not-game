@@ -79,6 +79,14 @@
       if (tier >= 2) [2093, 2637, 3136].forEach((f, i) => tone(f, { start: end + 0.1 + i * 0.07, dur: 0.12, type: 'sine', vol: 0.12 }));
       if (tier >= 4) tone(130.81, { start: end, dur: 0.7, type: 'sawtooth', vol: 0.12, slide: 261.63 });
     },
+    // Summoning nightmare mode: a low, detuned descent.
+    nightmare() {
+      [220, 207.65, 185, 155.56].forEach((f, i) => {
+        tone(f, { start: i * 0.14, dur: 0.4, type: 'sawtooth', vol: 0.16, slide: f * 0.94 });
+        tone(f * 1.012, { start: i * 0.14, dur: 0.4, type: 'square', vol: 0.06 });
+      });
+      tone(55, { start: 0.5, dur: 1.1, type: 'sawtooth', vol: 0.25, slide: 41 });
+    },
     // Losing a long streak: a falling shatter.
     comboBreak() {
       [880, 660, 494, 330].forEach((f, i) => tone(f, { start: i * 0.05, dur: 0.14, type: 'square', vol: 0.12, slide: f * 0.7 }));

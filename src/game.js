@@ -7,15 +7,19 @@
   const START_LIVES = 3;
   const BEST_KEY = 'not-not-best';
   const HARD_KEY = 'not-not-hard';
-  // Hard mode runs the difficulty clock faster, trims every answer window, and aims prompts
-  // a little above the normal curve.
-  // It also starts a minute into the game, skipping the warm-up levels.
-  const HARD = { clock: 1.6, time: 0.85, boost: 0.8, start: 60 };
+  // Hard mode runs the difficulty clock a bit faster, trims every answer window, and aims prompts
+  // slightly above the normal curve. It starts 50 seconds in, skipping the warm-up levels.
+  const HARD = { clock: 1.3, time: 0.9, boost: 0.3, start: 50 };
+  // Secret nightmare mode: every rule from the first prompt, difficulty climbing from `from` to `to`
+  // over `ramp` seconds, with spikes; the clock sits deep in endless so timers are already short.
+  const NIGHTMARE = { from: 8, to: 10, ramp: 120, seconds: 400, time: 1.2 };
+  const NIGHTMARE_KEY = 'not-not-nightmare';
+  const NIGHTMARE_FOUND_KEY = 'not-not-nightmare-found';
   // Normal mode's difficulty clock runs a little fast, since each new mechanic gets an intro card.
   const NORMAL_CLOCK = 1.2;
   // Each mechanic is explained once per player, the first time a game reaches it.
   const SEEN_KEY = 'not-not-seen';
-  const LEVEL_CARDS = ['shuffle', 'chaos', 'endless'];
+  const LEVEL_CARDS = ['shuffle'];
   const c = (color) => atom('color', color);
   const INTROS = {
     basic: { title: 'Press the key that matches', body: 'Each arrow key has a direction, a color, and a shape. Press the one the text names.', expr: c('green') },
@@ -29,9 +33,7 @@
     lyingColors: { title: 'Colors can lie', body: 'Go by what the text says, not the color it is written in. Here the word says green, so press green.', expr: c('green'), lying: true },
     memory: { title: '"last key" is the key you just pressed', body: 'Press the same key you answered with last round.', icon: '↺' },
     shuffle: { title: 'The keys shuffle', body: 'Every so often the colors and shapes swap keys. Check the pad before answering.', icon: '🔀' },
-    chaos: { title: 'Chaos mode', body: 'Everything so far, mixed together and coming faster.', icon: '🌀' },
     missing: { title: '"missing" means the one not listed', body: 'Three keys are named. Press the fourth.', expr: missing([c('red'), c('green'), c('blue')]) },
-    endless: { title: 'Endless', body: 'From here it keeps getting harder, for as long as you last.', icon: '♾️' },
   };
   const SHUFFLE = featureLevel('shuffle');
   const SHUFFLE_EVERY = 12; // rounds between pad shuffles once the shuffle level is reached
@@ -60,6 +62,7 @@
     hardToggles: [...document.querySelectorAll('.hard-toggle:not(#help-toggle)')],
     restart: $('#restart'),
     titleHint: $('#title-hint'),
+    nightmare: $('#nightmare-toggle'),
     intro: $('#intro-screen'),
     introTag: $('#intro-tag'),
     introTitle: $('#intro-title'),
@@ -168,17 +171,21 @@
 
   let hard = false;
   try { hard = localStorage.getItem(HARD_KEY) === '1'; } catch (_) { /* storage unavailable */ }
-  // Hard mode keeps its own best score so the two aren't compared directly.
-  const bestKey = (isHard = hard) => (isHard ? `${BEST_KEY}-hard` : BEST_KEY);
-  const loadBest = (isHard = hard) => {
-    try { return Number(localStorage.getItem(bestKey(isHard))) || 0; } catch (_) { return 0; }
+  const flag = (key) => { try { return localStorage.getItem(key) === '1'; } catch (_) { return false; } };
+  const setFlag = (key, on) => { try { localStorage.setItem(key, on ? '1' : '0'); } catch (_) { /* storage unavailable */ } };
+  let nightmare = flag(NIGHTMARE_KEY);
+  let nightmareFound = flag(NIGHTMARE_FOUND_KEY);
+  // Each mode keeps its own best score so they aren't compared directly.
+  const bestKey = (isHard = hard, isNightmare = nightmare) => (isNightmare ? `${BEST_KEY}-nightmare` : isHard ? `${BEST_KEY}-hard` : BEST_KEY);
+  const loadBest = (isHard = hard, isNightmare = nightmare) => {
+    try { return Number(localStorage.getItem(bestKey(isHard, isNightmare))) || 0; } catch (_) { return 0; }
   };
   let best = loadBest();
   // Hard mode unlocks after one finished regular game; anyone with a score already counts.
   const UNLOCK_KEY = 'not-not-hard-unlocked';
   let hardUnlocked = false;
   try { hardUnlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) { /* storage unavailable */ }
-  hardUnlocked = hardUnlocked || loadBest(false) > 0 || loadBest(true) > 0;
+  hardUnlocked = hardUnlocked || loadBest(false, false) > 0 || loadBest(true, false) > 0;
   if (!hardUnlocked) hard = false;
 
   const state = {
@@ -201,6 +208,7 @@
     skill: 0, // nudges prompt difficulty: up with each correct answer, down after a miss
     ease: 0, // rounds left of lighter prompts after a miss
     introQueue: [], // level ids whose intro cards are waiting to be read
+    runNightmare: false,
     runHard: false, // the setting this run started with; toggling mid-run applies on restart // the most complex prompt the player got wrong
   };
   let nextExpr = createGenerator();
@@ -210,18 +218,29 @@
   const elapsed = () => (performance.now() - state.startedAt) / 1000;
   // Seconds on the difficulty clock, which hard mode runs faster and starts ahead.
   // Level number shown to the player: hard mode counts from 1 at its later starting level.
-  const levelOffset = () => (state.runHard ? levelFor(HARD.start) : 0);
+  const levelOffset = () => (state.runHard ? levelFor(state.hardStart) : 0);
   const shownLevel = (level = state.level) => level + 1 - levelOffset();
-  const gameSeconds = () => (state.runHard ? HARD.start + elapsed() * HARD.clock : elapsed() * NORMAL_CLOCK);
+  const gameSeconds = () => (state.runNightmare ? NIGHTMARE.seconds + elapsed()
+    : state.runHard ? state.hardStart + elapsed() * HARD.clock : elapsed() * NORMAL_CLOCK);
+  // Hard mode skips ahead only past rules this player has already been taught.
+  function hardStartSeconds() {
+    const seen = loadSeen();
+    const firstNew = LEVELS.find((l, i) => i > 0 && INTROS[l.id] && !seen.has(l.id));
+    return Math.min(HARD.start, firstNew ? firstNew.at : HARD.start);
+  }
+  const nightmareTarget = () => NIGHTMARE.from + (NIGHTMARE.to - NIGHTMARE.from) * Math.min(1, elapsed() / NIGHTMARE.ramp);
 
   function updateHud() {
     els.lives.innerHTML = Array.from({ length: START_LIVES }, (_, i) =>
       `<span class="heart ${i < state.lives ? '' : 'lost'}">♥</span>`).join('');
     els.score.textContent = state.score;
     renderStreak();
-    els.level.textContent = `Level ${shownLevel()}`;
+    els.level.textContent = state.runNightmare ? 'Nightmare' : `Level ${shownLevel()}`;
     // Shows the running game's setting in play, otherwise the one the next game will use.
-    els.hardBadge.hidden = !(state.phase === 'playing' ? state.runHard : hard);
+    const nm = state.phase === 'playing' ? state.runNightmare : nightmare;
+    els.hardBadge.hidden = !(nm || (state.phase === 'playing' ? state.runHard : hard));
+    els.hardBadge.textContent = nm ? '👹 Nightmare' : '🌶️ Hard';
+    els.hardBadge.classList.toggle('nightmare', nm);
     els.hudBest.textContent = best;
   }
 
@@ -271,7 +290,8 @@
     resetLayout();
     renderLegend();
     nextExpr = createGenerator();
-    Object.assign(state, { introQueue: [], phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: hard ? levelFor(HARD.start) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, heldExpr: null, bestStreak: 0, nemesis: null, runHard: hard });
+    const hardStart = hardStartSeconds();
+    Object.assign(state, { hardStart, introQueue: [], phase: 'playing', startedAt: performance.now(), score: 0, lives: START_LIVES, streak: 0, level: nightmare ? LEVELS.length - 1 : hard ? levelFor(hardStart) : 0, round: null, pausedAt: 0, pendingRound: false, history: [], skill: 0, sinceShuffle: 0, lastKey: null, ease: 0, heldExpr: null, bestStreak: 0, nemesis: null, runHard: hard && !nightmare, runNightmare: nightmare });
     els.paused.hidden = true;
     els.pauseNote.textContent = '';
     document.body.classList.remove('is-paused');
@@ -282,7 +302,8 @@
     updateHud();
     els.intro.hidden = true;
     els.prompt.textContent = 'Get ready…';
-    if (!loadSeen().has('basic')) showIntros(['basic']);
+    if (!nightmare && !loadSeen().has('basic')) showIntros(['basic']);
+    renderNightmare();
     later(nextRound, 1100);
   }
 
@@ -300,7 +321,7 @@
       // Level-wide changes get their card now; prompt rules get theirs when a prompt first uses them.
       const id = LEVELS[level].id;
       const seen = loadSeen();
-      if (LEVEL_CARDS.includes(id) && !seen.has(id)) { showIntros([id]); state.pendingRound = true; return; }
+      if (!state.runNightmare && LEVEL_CARDS.includes(id) && !seen.has(id)) { showIntros([id]); state.pendingRound = true; return; }
     }
     // Shuffle on reaching the level and every few rounds after, with a beat to re-read the pad.
     if (state.level >= SHUFFLE && (state.sinceShuffle === 0 || state.sinceShuffle >= SHUFFLE_EVERY)) {
@@ -313,8 +334,11 @@
     // After a miss, two rounds with extra time let the player recover instead of spiralling.
     const easing = state.ease > 0;
     if (easing) state.ease -= 1;
-    const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0), stackedNots: loadSeen().has('not') });
-    const unseen = rulesIn(expr).filter((id) => !loadSeen().has(id));
+    const expr = state.runNightmare
+      ? nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill * 0.5, target: nightmareTarget(), spiky: true })
+      : nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0), stackedNots: loadSeen().has('not') });
+    // Nightmare skips the teaching cards: it assumes you know every rule.
+    const unseen = state.runNightmare ? [] : rulesIn(expr).filter((id) => !loadSeen().has(id));
     // A rule's first prompt is its card's own simple example, and a miss on it is free.
     if (unseen.length) {
       const id = unseen[0];
@@ -336,7 +360,8 @@
   }
 
   function startRound(expr, seconds, easing, freebie = false) {
-    const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
+    const modeTime = state.runNightmare ? NIGHTMARE.time : state.runHard ? HARD.time : 1;
+    const limit = timeLimit(state.level, seconds, expr) * modeTime * (easing ? 1.25 : 1);
     const now = performance.now();
     state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true, freebie };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
@@ -444,10 +469,10 @@
       const rounds = state.history.filter((h) => h.level === level);
       if (!rounds.length) return;
       const squares = rounds.slice(0, 10).map((h) => marks[h.result]).join('');
-      rows.push(`L${shownLevel(level)} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
+      rows.push(`${state.runNightmare ? '👹' : `L${shownLevel(level)}`} ${squares}${rounds.length > 10 ? ` +${rounds.length - 10}` : ''}`);
     });
     const lines = [
-      `Not not game 🧠 ${state.score} pts · Level ${shownLevel()}${state.runHard ? ' · 🌶️ Hard' : ''}`,
+      `Not not game 🧠 ${state.score} pts · ${state.runNightmare ? '👹 Nightmare' : `Level ${shownLevel()}${state.runHard ? ' · 🌶️ Hard' : ''}`}`,
       `🔥 Best streak ${state.bestStreak}`,
       ...rows,
     ];
@@ -476,12 +501,12 @@
     state.round = null;
     document.body.classList.remove('playing');
     window.Sound.gameOver();
-    best = loadBest(state.runHard);
+    best = loadBest(state.runHard, state.runNightmare);
     if (state.score > best) {
       best = state.score;
-      try { localStorage.setItem(bestKey(state.runHard), String(best)); } catch (_) { /* storage unavailable */ }
+      try { localStorage.setItem(bestKey(state.runHard, state.runNightmare), String(best)); } catch (_) { /* storage unavailable */ }
     }
-    if (!state.runHard && !hardUnlocked) {
+    if (!state.runHard && !state.runNightmare && !hardUnlocked) {
       hardUnlocked = true;
       try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (_) { /* storage unavailable */ }
       renderHard();
@@ -616,6 +641,8 @@
     if (e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
     if (e.code === 'KeyH') { toggleHard(); return; }
     if (e.code === 'KeyD' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleDebug(); return; }
+    // Secret: Cmd/Ctrl+N where the browser lets the page have it, or Shift+N anywhere.
+    if (e.code === 'KeyN' && (e.metaKey || e.ctrlKey || e.shiftKey)) { e.preventDefault(); summonNightmare(); return; }
     // Leave other browser shortcuts (Cmd+R, Cmd+H, ...) to the browser.
     if (e.metaKey || e.ctrlKey) return;
     if (e.code === 'KeyR' && !e.repeat) { e.preventDefault(); window.Sound.unlock(); startGame(); return; }
@@ -640,12 +667,44 @@
   els.share.addEventListener('click', () => { share(); els.share.blur(); });
   els.restart.addEventListener('pointerdown', (e) => e.stopPropagation());
   els.restart.addEventListener('click', () => { els.restart.blur(); startGame(); });
+  els.nightmare.addEventListener('pointerdown', (e) => e.stopPropagation());
+  els.nightmare.addEventListener('click', () => { els.nightmare.blur(); setNightmare(!nightmare); });
+  // Touch secret: tap the dog on the start card three times in a row.
+  let dogTaps = 0;
+  let dogTimer = 0;
+  $('.title-dog').addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    dogTaps += 1;
+    clearTimeout(dogTimer);
+    dogTimer = setTimeout(() => { dogTaps = 0; }, 600);
+    if (dogTaps >= 3) { dogTaps = 0; summonNightmare(); }
+  });
   els.intro.addEventListener('pointerdown', (e) => { e.preventDefault(); advanceIntro(); });
   els.paused.addEventListener('pointerdown', (e) => { e.preventDefault(); resume(); });
   els.pauseBtn.addEventListener('click', () => { togglePause(); els.pauseBtn.blur(); });
 
   // A hidden tab pauses so it doesn't cost lives; the player resumes explicitly.
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+  // Finding the secret turns nightmare on and starts a run; afterwards a corner toggle switches it.
+  function summonNightmare() {
+    nightmareFound = true;
+    setFlag(NIGHTMARE_FOUND_KEY, true);
+    setNightmare(true);
+  }
+  function setNightmare(on) {
+    nightmare = on;
+    setFlag(NIGHTMARE_KEY, on);
+    best = loadBest();
+    window.Sound.unlock();
+    if (on) window.Sound.nightmare();
+    startGame();
+  }
+  function renderNightmare() {
+    els.nightmare.hidden = !nightmareFound;
+    els.nightmare.setAttribute('aria-checked', String(nightmare));
+    els.nightmare.classList.toggle('on', nightmare);
+  }
 
   function renderHard() {
     els.hardToggles.forEach((t) => {
@@ -737,8 +796,8 @@
       <dl>
         <dt>Level</dt><dd>${shownLevel()} (${level.id})</dd>
         <dt>Clock</dt><dd>${seconds}s${state.runHard ? ' (hard)' : ''}</dd>
-        <dt>Score</dt><dd><b>${score.toFixed(2)}</b>${round.expr.aim == null ? ' · new mechanic' : ` · aimed ${round.expr.aim.toFixed(2)}`}</dd>
-        <dt>Target</dt><dd>${round.expr.target.toFixed(2)} (curve ${targetDifficulty(Number(seconds)).toFixed(2)}, skill ${state.skill >= 0 ? '+' : ''}${state.skill.toFixed(1)})</dd>
+        <dt>Score</dt><dd><b>${score.toFixed(2)}</b>${round.expr.aim == null ? ' · intro' : ` · aimed ${round.expr.aim.toFixed(2)}`}</dd>
+        <dt>Target</dt><dd>${round.expr.target == null ? 'free round' : round.expr.target.toFixed(2)} (curve ${targetDifficulty(Number(seconds)).toFixed(2)}, skill ${state.skill >= 0 ? '+' : ''}${state.skill.toFixed(1)})</dd>
         <dt>Easing</dt><dd>${easing ? 'yes, +25% time' : 'no'}</dd>
       </dl>
       <div class="debug-bar"><span style="width:${pct}%"></span></div>
@@ -760,6 +819,7 @@
   renderLegend();
   renderTitleCard();
   renderTitleHint();
+  renderNightmare();
   renderHard();
   renderDebug(false);
   // The ?v= value (month.day.year.build) on this script's URL doubles as the visible version, to spot stale caches.

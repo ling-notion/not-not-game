@@ -383,3 +383,19 @@ body.is-paused .prompt { filter: blur(14px); }
 .card h1.title { display: flex; align-items: center; gap: 0.25em; }
 .title-dog { width: 1.35em; height: 1.35em; object-fit: contain; flex: none; }
 .hard-toggle[hidden] { display: none; }
+
+/* The secret nightmare switch lives in the corner once found, above every card. */
+.nightmare-toggle {
+  position: fixed; right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 20;
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px;
+  background: rgba(28, 28, 40, 0.92); border: 1px solid #3a2030; color: var(--text); cursor: pointer; font: inherit;
+}
+.nightmare-toggle[hidden] { display: none; }
+.nightmare-icon { font-size: 18px; line-height: 1; filter: grayscale(1); opacity: 0.6; transition: filter 0.2s, opacity 0.2s; }
+.nightmare-toggle .switch { width: 34px; height: 20px; }
+.nightmare-toggle .switch::after { width: 14px; height: 14px; }
+.nightmare-toggle.on { border-color: #b3122f; box-shadow: 0 0 14px rgba(179, 18, 47, 0.45); }
+.nightmare-toggle.on .nightmare-icon { filter: none; opacity: 1; }
+.nightmare-toggle.on .switch { background: #b3122f; }
+.nightmare-toggle.on .switch::after { transform: translateX(14px); }
+.hard-badge.nightmare { color: #ff6b81; background: rgba(179, 18, 47, 0.2); }

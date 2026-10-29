@@ -379,16 +379,19 @@
     let lastScore = null; // difficulty of the previous prompt, so no prompt jumps far above it
     const wordsOf = (expr) => new Set(toTokens(expr).filter((t) => t.atom && t.atom.attr !== 'last').map((t) => t.atom.value));
     // stackedNots: false holds back "not not ..." until the player has met a single "not".
-    return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0, stackedNots = true } = {}) {
+    // target overrides the time curve; spiky lets some prompts jump well above it.
+    return function next(level, { lastKey: previousKey = null, seconds = LEVELS[level].at + 8, skill = 0, stackedNots = true, target: fixedTarget = null, spiky = false } = {}) {
       recentKey = previousKey;
       const unlocked = new Set(LEVELS.slice(0, level + 1).map((l) => l.id));
       const has = (id) => unlocked.has(id);
-      const target = Math.max(0.5, targetDifficulty(seconds) + skill);
+      const target = Math.max(0.5, (fixedTarget ?? targetDifficulty(seconds)) + skill);
       // Each prompt aims at its own point near the target: mostly just under it, with some breathers.
-      const aim = Math.max(0.5, rng() < 0.15 ? target - 1.2 : target - 0.5 + rng() * 0.8);
+      // Spiky runs swap a share of those for spikes well above the target.
+      const roll = rng();
+      const aim = Math.max(0.5, roll < 0.15 ? target - 1.2 : spiky && roll > 0.8 ? target + 0.8 + rng() * 0.8 : target - 0.5 + rng() * 0.8);
       // Hard cap: a little above the target, and at most one step above the previous prompt.
       // A breather or fallback lowers it only briefly, since the floor tracks the target.
-      const cap = Math.min(target + 0.7, lastScore == null ? Infinity : Math.max(lastScore, target - 1, 0.5) + 1.2);
+      const cap = spiky ? target + 1.7 : Math.min(target + 0.7, lastScore == null ? Infinity : Math.max(lastScore, target - 1, 0.5) + 1.2);
       // Mechanics above the cap wait until the curve catches up, instead of spiking in early.
       const affordable = (m) => introCost(m) <= cap;
       // A mechanic unlocked moments ago is shown often but on its own, in a simple prompt.
