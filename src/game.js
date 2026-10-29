@@ -292,7 +292,7 @@
     // A round scheduled during a pause starts once play resumes.
     if (state.pausedAt) { state.pendingRound = true; return; }
     // A prompt held back behind its intro cards plays as soon as they're read.
-    if (state.heldExpr) { const held = state.heldExpr; state.heldExpr = null; startRound(held.expr, held.seconds, held.easing); return; }
+    if (state.heldExpr) { const held = state.heldExpr; state.heldExpr = null; startRound(held.expr, held.seconds, held.easing, held.freebie); return; }
     const seconds = gameSeconds();
     const level = levelFor(seconds);
     if (level > state.level) {
@@ -317,19 +317,30 @@
     if (easing) state.ease -= 1;
     const expr = nextExpr(state.level, { lastKey: state.lastKey, seconds, skill: state.skill + (state.runHard ? HARD.boost : 0), stackedNots: loadSeen().has('not') });
     const unseen = rulesIn(expr).filter((id) => !loadSeen().has(id));
+    // A rule's first prompt is its card's own simple example, and a miss on it is free.
     if (unseen.length) {
-      state.heldExpr = { expr, seconds, easing };
+      const id = unseen[0];
+      state.heldExpr = { expr: freebieFor(id) || expr, seconds, easing, freebie: true };
       state.pendingRound = true;
-      showIntros(unseen);
+      showIntros([id]);
       return;
     }
     startRound(expr, seconds, easing);
   }
 
-  function startRound(expr, seconds, easing) {
+  function freebieFor(id) {
+    if (id === 'memory') return state.lastKey ? Object.assign(lastKey(state.lastKey), { style: {} }) : null;
+    const intro = INTROS[id];
+    if (!intro || !intro.expr) return null;
+    const expr = JSON.parse(JSON.stringify(intro.expr));
+    expr.style = { symbols: !!intro.symbols, lyingColors: !!intro.lying };
+    return expr;
+  }
+
+  function startRound(expr, seconds, easing, freebie = false) {
     const limit = timeLimit(state.level, seconds, expr) * (state.runHard ? HARD.time : 1) * (easing ? 1.25 : 1);
     const now = performance.now();
-    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true };
+    state.round = { expr, answers: evaluate(expr), needAll: needsAll(expr), pressed: new Set(), limit, deadline: now + limit, active: true, freebie };
     Object.values(els.tiles).forEach((t) => t.classList.remove('valid', 'hit', 'miss'));
     showFeedback('', '');
     renderPrompt(expr);
@@ -376,7 +387,7 @@
     const correct = round.needAll ? round.pressed.size === round.answers.size
       : pressedNothing ? round.answers.size === 0 : round.answers.has(keyId);
     const tile = keyId && els.tiles[keyId];
-    recordRound(round.expr, correct ? 'hit' : pressedNothing ? 'slow' : 'miss');
+    if (correct || !round.freebie) recordRound(round.expr, correct ? 'hit' : pressedNothing ? 'slow' : 'miss');
 
     if (correct) {
       state.streak += 1;
@@ -391,11 +402,13 @@
       document.body.classList.add('flash-good');
       later(() => document.body.classList.remove('flash-good'), 180);
     } else {
-      state.lives -= 1;
-      if (state.streak >= STREAK_TIERS[0]) { window.Sound.comboBreak(); showBanner(`Streak broken at ${state.streak}`); }
-      state.streak = 0;
-      state.ease = 2;
-      state.skill = Math.max(-1.5, Math.min(0, state.skill) - 0.8);
+      if (!round.freebie) {
+        state.lives -= 1;
+        if (state.streak >= STREAK_TIERS[0]) { window.Sound.comboBreak(); showBanner(`Streak broken at ${state.streak}`); }
+        state.streak = 0;
+        state.ease = 2;
+        state.skill = Math.max(-1.5, Math.min(0, state.skill) - 0.8);
+      }
       if (tile) tile.classList.add('miss');
       round.answers.forEach((id) => { if (!round.pressed.has(id)) els.tiles[id].classList.add('valid'); });
       window.Sound.wrong();
@@ -404,7 +417,7 @@
         : memoryKey ? `Last key was ${KEYS.find((k) => k.id === memoryKey.atom.key).glyph}`
         : pressedNothing ? (round.pressed.size ? `Too slow: ${round.pressed.size} of ${round.answers.size}` : 'Too slow')
         : round.needAll && round.pressed.has(keyId) ? 'Already pressed that one' : 'Wrong key';
-      showFeedback(why, 'bad');
+      showFeedback(round.freebie ? `${why}. Free round, no life lost` : why, 'bad');
       document.body.classList.add('shake');
       later(() => document.body.classList.remove('shake'), 350);
     }
@@ -475,7 +488,6 @@
       hardUnlocked = true;
       try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (_) { /* storage unavailable */ }
       renderHard();
-      els.hardToggles.forEach((t) => t.classList.add('just-unlocked'));
     }
     els.finalScore.textContent = state.score;
     els.sharePreview.textContent = shareText();
@@ -644,15 +656,14 @@
   function renderHard() {
     els.hardToggles.forEach((t) => {
       t.setAttribute('aria-checked', String(hard));
-      t.setAttribute('aria-disabled', String(!hardUnlocked));
       t.classList.toggle('on', hard);
-      t.classList.toggle('locked', !hardUnlocked);
-      t.querySelector('b').textContent = hardUnlocked ? '🌶️ Hard mode' : '🔒 Hard mode';
-      t.querySelector('.toggle-note').textContent = hardUnlocked ? '(for a challenge)' : '(locked: finish one regular game)';
+      // Hidden until a regular game has been finished.
+      t.hidden = !hardUnlocked;
+      t.querySelector('.toggle-note').textContent = '(for a challenge)';
     });
   }
 
-  // Lives on the title and game-over cards, so a run's score always reflects one setting.
+  // Toggled from the pause menu; a change applies on restart, so a run's score reflects one setting.
   function toggleHard() {
     if (!hardUnlocked) return;
     if (state.phase === 'playing' && !state.pausedAt) return;

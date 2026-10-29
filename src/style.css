@@ -142,8 +142,8 @@ body.shake .stage { animation: shake 0.3s; }
 .prompt .paren { color: var(--muted); font-weight: 400; }
 .prompt .word { white-space: nowrap; display: inline-flex; align-items: center; }
 .prompt .symbol { display: inline-flex; align-items: center; line-height: 1; }
-/* Sized to the text so shapes sit level with words at every font size. */
-.prompt .symbol svg { width: 0.8em; height: 0.8em; }
+/* Sized to the text and nudged down onto the words' baseline, since lowercase text sits low in its line. */
+.prompt .symbol svg { width: 0.72em; height: 0.72em; transform: translateY(0.05em); }
 
 .timer {
   margin: 22px auto 0;
@@ -265,9 +265,6 @@ kbd {
   font: inherit; cursor: pointer;
 }
 .hard-toggle.on { border-color: #ffb36b; }
-.hard-toggle.locked { cursor: not-allowed; opacity: 0.6; border-style: dashed; border-color: #3a3a4a; }
-.hard-toggle.locked .switch::after { background: #6a6a7a; }
-.hard-toggle.just-unlocked { animation: unlocked 1.2s ease-out 2; border-color: #ffb36b; }
 .switch {
   flex: none; position: relative; width: 40px; height: 22px; border-radius: 999px;
   background: #3a3a4a; transition: background-color 0.15s;
@@ -334,7 +331,6 @@ body.is-paused .prompt { filter: blur(14px); }
   55% { opacity: 0.9; }
   100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
-@keyframes unlocked { 50% { box-shadow: 0 0 0 4px rgba(255, 179, 107, 0.35); } }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
 .debug {
@@ -385,3 +381,4 @@ body.is-paused .prompt { filter: blur(14px); }
 .intro-icon { font-size: 40px; line-height: 1; }
 .card h1.title { display: flex; align-items: center; gap: 0.25em; }
 .title-dog { width: 1.35em; height: 1.35em; object-fit: contain; flex: none; }
+.hard-toggle[hidden] { display: none; }
